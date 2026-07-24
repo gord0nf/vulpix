@@ -1,0 +1,380 @@
+#!/usr/bin/env bash
+
+# NOTE: this also adds the --test option, which means parse all the things, but don't actually do anything
+
+set -e
+
+command_exists() {
+	command -v "$1" &>/dev/null
+}
+
+# requirements!
+DEPENDENCIES=(bash yq)
+for dep in "${DEPENDENCIES[@]}"; do
+	if ! command_exists "$dep"; then
+		echo "dependency '$dep' not available" >&2
+		exit 1
+	fi
+done
+if ! [[ -v VULPIX ]]; then
+	echo 'VULPIX not defined' >&2
+	exit 1
+fi
+if ! [[ -d "$VULPIX" ]]; then
+	echo 'invalid directory in VULPIX' >&2
+	exit 1
+fi
+export VULPIX="$VULPIX"
+
+# source utils ASAP
+[[ -f "$VULPIX/utils.sh" ]] && source "$VULPIX/utils.sh" || {
+	echo 'failed to source $VULPIX/utils.sh' >&2
+	exit 1
+}
+
+debug "using vulpix at: $VULPIX"
+
+# script dependencies
+source_script "$VULPIX/src/library.sh"
+
+HELP=$"usage: vulpix [opts] [subcommand]
+
+If run as root, applies changes at system level, else only applies at user 
+level. This also effects where it looks for app dirs (like configuration).
+
+options:
+
+  -h, --help        print help
+  -b, --blueprint   specify blueprint yaml path, otherwise searches default 
+                    locations
+  -d, --dotfiles    specify path to dotfiles repo, otherwise looks at blueprint
+                    for path
+
+subcommands:
+
+  [none]    ...packages   Syncs system/user with blueprint. Equivalent of running
+                          'clean', then 'install ...packages', then 'config
+                          ...packages' subcommands, where ...packages are the 
+                          packages passed as args. If no packages are passed,
+                          execution is the same, but the '--all' arg is appended
+                          to the 'config' cmd.
+
+  clean                   Cleans floating packages. If any packages are
+                          installed but are not a package specified in blueprint
+                          they will be uninstalled.
+
+  install   ...packages   Syncs *installation* of packages with blueprint. If
+                          any packages in the blueprint or args are not
+                          installed, they will be installed. If a package passed
+                          as an arg is not in the blueprint, it will prompt and
+                          require the package to be added to the blueprint
+                          before continuing. If any packages are passed,
+                          installation sync will only occur for the specified
+                          packages, else the entire blueprint is synced. 
+
+  config    ...packages|all Syncs *config* of packages with blueprint. It
+                            always runs the global config. If any packages are
+                          passed as args, it runs the config corresponding to
+                          those packages. If 'all' is passed, all packages'
+                          configs are ran. 
+
+  reinstall ...packages    uninstalls then reinstalls specified packages (or all
+                          packages if none specified). prompts to add to
+                          blueprint if specified packages isn't there.
+
+  dotfiles                creates symlinks from stuff in dotfiles path (see
+                          --dotfiles option) to all the correct locations.
+
+  edit                    opens config directory in \$EDITOR or \$VISUAL.
+
+  bootstrap               updates vulpix and reruns bootstrap script; useful if
+                          you broke something. 
+
+NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."
+
+SUBCOMMANDS=(
+	'clean'
+	'install'
+	'config'
+	'reinstall'
+	'dotfiles'
+	'edit'
+	'bootstrap'
+)
+
+# parse raw arguments -----------------------------------------------------------------------------
+
+is_test=false
+blueprint_path=
+dotfiles_path=
+subcommand=
+subcommand_args=()
+
+first_arg_passed=false
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--help | -h) echo "$HELP" && exit ;;
+	--test) is_test=true ;;
+	--blueprint | -b)
+		[[ $# -ge 2 ]] || fatal 'expected arg for --blueprint'
+		blueprint_path="$2"
+		shift
+		;;
+	--dotfiles | -d)
+		[[ $# -ge 2 ]] || fatal 'expected arg for --dotfiles'
+		dotfiles_path="$2"
+		shift
+		;;
+	-*) fatal "invalid option '$1'" ;;
+	*)
+		if ! $first_arg_passed; then
+			first_arg_passed=true
+			if array_has_element SUBCOMMANDS "$1"; then
+				subcommand="$1"
+				shift
+				continue
+			fi
+		fi
+		subcommand_args+=("$1")
+		;;
+	esac
+	shift
+done
+
+debug "is_test=$is_test"
+debug "blueprint_path=$blueprint_path"
+debug "dotfiles_path=$dotfiles_path"
+debug "subcommand=$subcommand"
+debug "subcommand args: ${subcommand_args[@]}"
+
+# process subcommand ------------------------------------------------------------------------------
+
+dotfiles_subcommand() {
+	: # TODO
+}
+
+edit_subcommand() {
+	editor=${VISUAL:-$EDITOR}
+	[[ -z "$editor" ]] && fatal "couldn't get editor; please define VISUAL or EDITOR"
+	debug "editor: $editor"
+	mkdir "$VULPIX_CONFIG"
+	"$editor" "$VULPIX_CONFIG"
+}
+
+bootstrap_subcommand() {
+	info 'running bootstrap script'
+	bash "$VULPIX/bootstrap.sh"
+}
+
+clean=false
+install=false
+reinstall_instead_of_update=false
+config=false
+config_packages=false
+scope_packages=() # packages like name@manager, if empty, there's no scope (so all packages)
+
+if [[ -z "$subcommand" ]]; then
+	subcommand='clean install config' # so it falls through in case statement below
+	config_packages=true
+fi
+
+case "$subcommand" in
+*clean*) clean=true ;;&
+*install*)
+	install=true
+	for arg in "${subcommand_args[@]}"; do
+		parse_package "$arg" || fatal "invalid package syntax at '$arg'"
+		array_has_element scope_packages "$arg" || scope_packages+=("$arg")
+	done
+	;;&
+*config*)
+	config=true
+	for arg in "${subcommand_args[@]}"; do
+		if [[ "$subcommand" == 'config' ]]; then
+			config_packages=true # if at least one package (or all) is specified, configure packges
+			if [[ "$arg" == 'all' ]]; then
+				scope_packages=() # no scope
+				break
+			fi
+		fi
+		parse_package "$arg" || fatal "invalid package syntax at '$arg'"
+		array_has_element scope_packages "$arg" || scope_packages+=("$arg")
+	done
+	;;&
+*reinstall*)
+	# note: will have already run '*install*' case above ^^^
+	reinstall_instead_of_update=true
+	;;
+*)
+	if ! $is_test; then
+		func="${subcommand}_subcommand"
+		function_exists "$func" && {
+			$func
+			exit $?
+		}
+	fi
+	;;
+esac
+
+debug "clean=$clean"
+debug "install=$install"
+debug "reinstall=$reinstall_instead_of_update"
+debug "config=$config"
+debug "config_packages=$config_packages"
+debug "scope: ${scope_packages[@]}"
+
+# load blueprint ----------------------------------------------------------------------------------
+
+# TODO
+
+blueprint_packages=("${scope_packages[@]}") # TODO: from blueprint (also look at scope_packages and prompt to add if not in blueprint)
+
+# install packages --------------------------------------------------------------------------------
+
+# test = print all the parsed stuff
+if $is_test; then
+	echo 'packages:'
+	printf '  %s\n' "${blueprint_packages[@]}"
+	exit
+fi
+
+if $clean || $install || $reinstall; then
+	debug 'manager stuff start'
+
+	# sort packages and scope_packages by manager
+	managers=()
+	for package in "${blueprint_packages[@]}"; do
+		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
+		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
+		array_name=${parsed_manager}_packages
+		array_has_element managers "$parsed_manager" || {
+			managers+=("$parsed_manager")
+			declare -a "$array_name"
+		}
+		declare -n manager_packages="$array_name"
+		manager_packages+=("$parsed_package")
+	done
+
+	# scope_packages by manager
+	for package in "${scope_packages[@]}"; do
+		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
+		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
+		array_name=${parsed_manager}_scope_packages
+		[[ -v "$array_name" ]] || declare -a "$array_name"
+		declare -n manager_scope_packages="$array_name"
+		manager_scope_packages+=("$parsed_package")
+	done
+
+	for manager in "${managers[@]}"; do
+		declare -n manager_blueprint_packages=${manager}_packages
+		declare -n manager_scope_packages=${manager}_scope_packages
+		debug "blueprint packages for $manager: ${manager_blueprint_packages[@]}"
+		debug "scope packages for $manager: ${manager_scope_packages[@]}"
+
+		# start in a subshell so manager script doesn't clutter env
+		(
+			load_manager "$manager"
+
+			if function_exists presetup; then
+				info "running $manager presetup"
+				presetup || fatal "$manager presetup failed"
+				info "$manager prestup succeeded"
+			fi
+
+			installed_packages=()
+			get_installed installed_packages
+			debug "installed_packages: ${installed_packages[@]}"
+
+			# diff between blueprint packages and installed packages
+			to_install=() to_update=() to_uninstall=()
+			for package in "${installed_packages[@]}"; do
+				array_has_element manager_blueprint_packages "$package" &&
+					to_update+=("$package") ||
+					to_uninstall+=("$package")
+			done
+			for package in "${manager_blueprint_packages[@]}"; do
+				array_has_element installed_packages "$package" ||
+					to_install+=("$package")
+			done
+
+			debug "to_install: ${to_install[@]}"
+			debug "to_update: ${to_update[@]}"
+			debug "to_uninstall: ${to_uninstall[@]}"
+
+			# apply scope
+			if [[ "${#manager_scope_packages[@]}" -gt 0 ]]; then
+				debug 'applying scope'
+				to_install_tmp=() to_update_tmp=()
+				for package in "${manager_scope_packages[@]}"; do
+					if array_has_element to_install "$package"; then
+						to_install_tmp+=("$package")
+					elif array_has_element to_update "$package"; then
+						to_update_tmp+=("$package")
+					else
+						fatal 'scope package not in to_install or to_update (this should not happen...)'
+					fi
+				done
+				to_install=("${to_install_tmp[@]}")
+				to_update=("${to_update_tmp[@]}")
+			fi
+
+			if $clean; then
+				if [[ "${#to_uninstall[@]}" -gt 0 ]]; then
+					info 'cleaning packages'
+					uninstall_packages to_uninstall
+				else
+					info 'no packages to clean'
+				fi
+			fi
+
+			if $install; then
+				if [[ "${#to_install[@]}" -gt 0 ]]; then
+					info 'installing packages'
+					install_packages to_install
+				else
+					info 'no packages to install'
+				fi
+
+				$reinstall_instead_of_update && update_kw=reinstall || {
+					update_kw=update
+					update_verb=updat
+				}
+				if [[ "${#to_update[@]}" -gt 0 ]]; then
+					info "${update_verb:-$update_kw}ing packages"
+					${update_kw}_packages to_update
+				else
+					info "no packages to $update_kw"
+				fi
+			fi
+
+			if function_exists postsetup; then
+				info "running $manager postsetup"
+				postsetup || fatal "$manager postsetup failed"
+				info "$manager postsetup succeeded"
+			fi
+		)
+	done
+
+	debug 'manager stuff end'
+fi
+
+# config global, then packages --------------------------------------------------------------------
+
+if $config; then
+	# global
+
+	# TODO
+
+	# packages --------------------------
+	if $config_packages; then
+
+		if [[ "${#scope_packages[@]}" -gt 0 ]]; then
+			config_packages=("${scope_packages[@]}")
+		else
+			config_packages=("${blueprint_packages}")
+		fi
+
+		# TODO
+
+	fi
+fi

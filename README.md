@@ -1,7 +1,7 @@
 # vulpix
 
-a cross-platform manager that does magic based on a blueprint (a certain `vulpix.yaml`) that
-describes the desired state of the machine and/or user.
+a cross-platform manager that does magic based on a blueprint (a yaml file) that describes the
+desired state of the machine and/or user.
 
 ### features
 
@@ -75,45 +75,57 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
 
 ## usage
 
-    usage: vulpix [opts] [subcommand]
+    HELP=$"usage: vulpix [opts] [subcommand]
 
-    If run as root, applies changes at system level, else only applies at user level. This also applies
-    with where it looks for configuration.
+    If run as root, applies changes at system level, else only applies at user
+    level. This also effects where it looks for app dirs (like configuration).
 
     options:
 
-      -b, --blueprint   specify blueprint yaml path, otherwise searches default locations
-      -d, --dotfiles    specify path to dotfiles repo, otherwise looks at blueprint for path
+      -h, --help        print help
+      -b, --blueprint   specify blueprint yaml path, otherwise searches default
+                        locations
+      -d, --dotfiles    specify path to dotfiles repo, otherwise looks at blueprint
+                        for path
 
     subcommands:
 
-      [none]    ...packages   Syncs system/user with blueprint. Equivalent of running `clean`, then
-                              `install ...packages`, then `config ...packages` subcommands, where
-                              ...packages are the packages passed as args. If no packages are passed,
-                              execution is the same, but the `--all` arg is appended to the `config` cmd.
+      [none]    ...packages   Syncs system/user with blueprint. Equivalent of running
+                              'clean', then 'install ...packages', then 'config
+                              ...packages' subcommands, where ...packages are the
+                              packages passed as args. If no packages are passed,
+                              execution is the same, but the '--all' arg is appended
+                              to the 'config' cmd.
 
-      clean                   Cleans floating packages. If any packages are installed but are not a
-                              package specified in blueprint, they will be uninstalled.
+      clean                   Cleans floating packages. If any packages are
+                              installed but are not a package specified in blueprint
+                              they will be uninstalled.
 
-      install   ...packages   Syncs *installation* of packages with blueprint. If any packages in the
-                              blueprint or args are not installed, they will be installed. If a package
-                              passed as an arg is not in the blueprint, it will prompt and require the
-                              package to be added to the blueprint before continuing. If any packages are
-                              passed, installation sync will only occur for the specified packages, else
-                              the entire blueprint is synced.
+      install   ...packages   Syncs *installation* of packages with blueprint. If
+                              any packages in the blueprint or args are not
+                              installed, they will be installed. If a package passed
+                              as an arg is not in the blueprint, it will prompt and
+                              require the package to be added to the blueprint
+                              before continuing. If any packages are passed,
+                              installation sync will only occur for the specified
+                              packages, else the entire blueprint is synced.
 
-      config    [--all|-a]    Syncs *config* of packages with blueprint. It always runs the global config.
-                ...packages   If any packages are passed as args, it runs the config corresponding to
-                              those packages. If --all or -a is passed, all packages' configs are ran.
+      config    ...packages|all Syncs *config* of packages with blueprint. It
+                                always runs the global config. If any packages are
+                              passed as args, it runs the config corresponding to
+                              those packages. If 'all' is passed, all packages'
+                              configs are ran.
 
-      reinstall ...packages   uninstalls then reinstalls specified packages (or all packages if none
-                              specified). prompts to add to blueprint if specified packages isn't there
+      reinstall ...packages    uninstalls then reinstalls specified packages (or all
+                              packages if none specified). prompts to add to
+                              blueprint if specified packages isn't there.
 
-      dotfiles                creates symlinks from stuff in dotfiles path (see --dotfiles option) to
-                              all the correct locations.
+      dotfiles                creates symlinks from stuff in dotfiles path (see
+                              --dotfiles option) to all the correct locations.
 
-      edit                    opens config directory in \$EDITOR/\$VISUAL
+      edit                    opens config directory in \$EDITOR or \$VISUAL.
 
-      bootstrap               updates vulpix and reruns bootstrap script; useful if you broke something.
+      bootstrap               updates vulpix and reruns bootstrap script; useful if
+                              you broke something.
 
-    NOTE: ...packages are passed like package_name@manager (example: neovim@manual).
+    NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."

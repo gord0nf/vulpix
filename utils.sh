@@ -131,8 +131,12 @@ __sourced=()
 source_script() {
   [[ -f "$1" ]] || fatal "could not source nonexistent '$1'"
   for script in "${__sourced[@]}"; do
-    [[ "$1" -ef "$script" ]] && return
+    [[ "$1" -ef "$script" ]] && {
+      debug "skipping resource of $1"
+      return
+    }
   done
+  debug "sourcing $1"
   source "$1" || fatal "failed to source '$1'"
   __sourced+=("$1")
 }
