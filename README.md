@@ -65,6 +65,8 @@ vs user install preference):
 
 alternatively, clone this repo in the desired location and run `bootstrap.ps1`.
 
+alternatively, you can also use the [linux](#linux) installation if you have bash installed already.
+
 > [!NOTE]
 >
 > if bootstrap.ps1 cannot find bash, it will install it via

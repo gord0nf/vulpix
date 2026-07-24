@@ -7,7 +7,7 @@
 
 # basic default logging
 debug() {
-  echo "DEBUG: $*"
+  if [[ -v DEBUG ]]; then echo "DEBUG: $*"; fi
 }
 info() {
   echo "INFO: $*"
@@ -64,6 +64,31 @@ get_arch() {
 
 is_root() {
   [[ "$EUID" -eq 0 ]]
+}
+
+is_git_repo() {
+  git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
+}
+
+prompt() {
+  read -n 1 -r -p "$1 (y/n): " answer
+  echo # new line
+  case $answer in
+    [yY]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+convert_path_if_needed() {
+  local target_switch=$1
+  local path=$2
+  if command_exists wslpath; then
+    echo "$(wslpath $target_switch "$path")"
+  elif command_exists cygpath; then
+    echo "$(cygpath $target_switch "$path")"
+  else
+    echo "$path"
+  fi
 }
 
 # environmental variables -------------------------------------------------------------------------
