@@ -8,8 +8,13 @@ REPO='mikefarah/yq'
   exit 1
 }
 
+get_version() {
+  [[ -f "$1" ]] || return 1
+  "$1" --version 2>/dev/null | sed -nE 's/.*([0-9]+(\.[0-9]+){2}).*/\1/p'
+}
+
 get_latest_github_tag() {
-  curl --fail -s "https://api.github.com/repos/$REPO/releases/latest" |
+  curl -L --fail -s "https://api.github.com/repos/$REPO/releases/latest" |
     grep -E -o '.*"tag_name".*:.+' |
     sed 's/^.*:\s*"\(.*\)".*$/\1/'
 }
@@ -64,19 +69,36 @@ download_and_extract() {
   return $status
 }
 
+echo 'INFO: getting version from github' >&2
+latest_version=$(get_latest_github_tag) || exit 1
+
+should_install=true
+
+# check if update is necessary
 if [[ -d "$INSTALL_DIR" ]]; then
-  echo "INFO: already installed" >&2
-else
+  current_version="v$(get_version "$INSTALL_DIR/yq")"
+  if [[ $? -eq 0 ]]; then
+    echo "DEBUG: $current_version installed vs $latest_version latest" >&2
+    if [[ "$current_version" == "$latest_version" ]]; then
+      echo 'INFO: up to date' >&2
+      should_install=false
+    else
+      echo 'INFO: updating' >&2
+    fi
+  else
+    echo 'INFO: broken install, reinstalling latest' >&2
+  fi
+fi
+
+if $should_install; then
   get_os
   get_arch
+  rm -fr "$INSTALL_DIR"
   mkdir -p "$INSTALL_DIR"
 
-  echo 'INFO: getting version from github' >&2
-  version=$(get_latest_github_tag) || exit 1
-
-  echo "INFO: downloading version $version" >&2
+  echo "INFO: downloading version $latest_version" >&2
   binary="yq_${OS}_${ARCH}"
-  url="https://github.com/$REPO/releases/download/$version/$binary"
+  url="https://github.com/$REPO/releases/download/$latest_version/$binary"
   [[ $OS == windows ]] && url+='.zip' || url+='.tar.gz'
   download_and_extract "$url" "$INSTALL_DIR" || {
     echo 'FATAL: install failed' >&2
@@ -87,5 +109,8 @@ else
   chmod +x "$INSTALL_DIR/yq"
 fi
 
-[[ -f "$INSTALL_DIR/yq" ]] || echo "WARN: yq not in install dir" >&2
-echo "$INSTALL_DIR" # return bin directory
+[[ -f "$INSTALL_DIR/yq" ]] || {
+  echo "FATAL: yq not in install dir" >&2
+  exit 1
+}
+echo '.' # return relative bin directory, which is the install dir

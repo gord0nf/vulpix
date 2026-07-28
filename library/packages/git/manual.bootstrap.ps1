@@ -38,10 +38,21 @@ EnableFSMonitor=Disabled
 "@
 
 function Get-VersionTag() {
+  Write-Host 'INFO: getting version from github'
   $releaseInfo = `
     Invoke-WebRequest -UseBasicParsing "https://api.github.com/repos/git-for-windows/git/releases/latest" |
     ConvertFrom-Json
   return $releaseInfo.tag_name
+}
+
+function Get-InstalledVersion() {
+  $git = "$InstallDir/bin/git"
+  if (Test-Path $git) {
+    $currentVersion = & $git --version
+    if ($currentVersion -match "(\d+\.\d+\.\d+)(\.windows.*)?") {
+      $currentVersion = "v$($Matches[1])"
+    }
+  }
 }
 
 function Get-DownloadUrl($Version) {
@@ -58,12 +69,30 @@ function Get-DownloadUrl($Version) {
   }
 }
 
-if (Test-Path -Path $InstallDir -PathType Container) {
-  Write-Host 'INFO: already installed'
-} else {
-  Write-Host 'INFO: getting version from github'
-  $version = Get-VersionTag
-  $url = Get-DownloadUrl $version
+$Update = Test-Path -Path $InstallDir -PathType Container
+$Install = -not $Update
+$LatestVersion = Get-VersionTag
+
+if ($Update) {
+  $currentVersion = Get-InstalledVersion
+  if ($currentVersion) {
+    Write-Host "DEBUG: current version: $currentVersion"
+    Write-Host "DEBUG: latest version: $LatestVersion"
+    if ($currentVersion -eq $LatestVersion) {
+      Write-Host 'INFO: up to date'
+    } else {
+      Write-Host 'INFO: reinstalling updated version'
+      $Install = $true
+    }
+  } else {
+    Write-Host 'INFO: broken installation, reinstalling latest'
+    $Install = $true
+  }
+}
+
+if ($Install) {
+  Remove-Item -Force -Recursive $InstallDir
+  $url = Get-DownloadUrl $LatestVersion
 
   Write-Host 'INFO: downloading Git for Windows'
   $tmp = New-TemporaryFile

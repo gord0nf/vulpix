@@ -6,11 +6,14 @@
 # functions ---------------------------------------------------------------------------------------
 
 # basic default logging
+output() {
+  echo "OUTPUT: $*"
+}
 debug() {
-  if [[ -v DEBUG ]]; then echo "DEBUG: $*"; fi
+  if [[ -v DEBUG ]]; then echo "DEBUG: $*" >&2; fi
 }
 info() {
-  echo "INFO: $*"
+  echo "INFO: $*" >&2
 }
 warn() {
   echo "WARN: $*" >&2
@@ -89,6 +92,29 @@ convert_path_if_needed() {
   else
     echo "$path"
   fi
+}
+
+function_exists() {
+  [[ "$(type -t "$1")" == "function" ]]
+}
+
+# https://jcgoran.github.io/2021/02/07/bash-string-trimming.html
+trimstring() {
+  if [ $# -ne 1 ]; then
+    echo "USAGE: trimstring [STRING]"
+    return 1
+  fi
+  s="${1}"
+  size_before=${#s}
+  size_after=0
+  while [ ${size_before} -ne ${size_after} ]; do
+    size_before=${#s}
+    s="${s#[[:space:]]}"
+    s="${s%[[:space:]]}"
+    size_after=${#s}
+  done
+  echo "${s}"
+  return 0
 }
 
 # environmental variables -------------------------------------------------------------------------
