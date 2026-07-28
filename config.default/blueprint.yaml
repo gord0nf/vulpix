@@ -1,0 +1,7 @@
+# set target package installation.
+# should be an array of packages, with package syntax like name@manager (e.g. neovim@manual), e.g.
+#  packages:
+#    - neovim@manual
+#    - vim@apt
+#    - what@pacman
+packages: []

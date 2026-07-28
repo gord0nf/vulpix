@@ -225,9 +225,27 @@ debug "scope: ${scope_packages[@]}"
 
 # load blueprint ----------------------------------------------------------------------------------
 
-# TODO
+BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
+[[ -f "$BLUEPRINT" ]] || fatal "no blueprint at $BLUEPRINT"
 
-blueprint_packages=("${scope_packages[@]}") # TODO: from blueprint (also look at scope_packages and prompt to add if not in blueprint)
+blueprint_packages=()
+yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" ||
+	fatal "failed to parse blueprint"
+
+# look at scope_packages and prompt to add if not in blueprint
+floating_scope_packages=()
+for package in "${scope_packages[@]}"; do
+	array_has_element blueprint_packages "$package" || floating_scope_packages+=("$package")
+done
+if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
+	debug "floating_scope_packages: ${floating_scope_packages[@]}"
+	echo "The following packages were provided but are not in blueprint:"
+	printf '    %s\n' "${floating_scope_packages[@]}"
+	prompt "Add all of them to blueprint to continue?" ||
+		fatal 'aborted... packages must be defined in blueprint'
+
+	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
+fi
 
 # install packages --------------------------------------------------------------------------------
 

@@ -77,7 +77,7 @@ update_source() {
 download_source() {
   tar_cmd="tar -xzv -C '$1' --strip-components=1"
   cmd="$DOWNLOAD '$VULPIX_REPO_TARBALL' | $tar_cmd"
-  if [ -n "$(ls -A "$1" 2>/dev/null)" ]; then
+  if ! dir_is_empty "$1"; then
     warn "install dir not empty ($1)"
     prompt "overwrite to continue?" || fatal 'install aborted'
   fi
@@ -121,19 +121,52 @@ chmod a+x "$VULPIX_INSTALL/bin/"*
 debug 'chmoding bootstrap'
 chmod a+x "$VULPIX_INSTALL/bootstrap."*
 
-# step 2: bootstrap dependencies ------------------------------------------------------------------
-
 echo # style
+
+# step 2: bootstrap dependencies ------------------------------------------------------------------
 
 info "bootstrapping dependencies at $MANUAL_ROOT/packages"
 
 bootstrap_package yq || fatal 'yq bootstrap failed'
 command_exists yq || fatal "bootstrap suppossedly succeeded, but yq isn't available"
 
+echo # style
+
 # step 3: init blueprint and config stuff ---------------------------------------------------------
 
-# TODO
+info "copying default config to $VULPIX_CONFIG"
+mkdir -p "$VULPIX_CONFIG"
+if ! dir_is_empty "$VULPIX_CONFIG"; then
+  warn "$VULPIX_CONFIG not empty"
+  warn "if you don't use the defaults, some setup may not work correctly"
+  ! prompt 'are you sure you want to keep the current configuration and skip core defaults?'
+else
+  true
+fi
+[[ $? -eq 0 ]] && {
+  debug 'copying config.default'
+  rm -fr "$VULPIX_CONFIG"
+  cp --recursive "$VULPIX_INSTALL/config.default" "$VULPIX_CONFIG"
+}
+
+# update blueprint.yaml to reflect manual manager packages
+BLUEPRINT="$VULPIX_CONFIG/blueprint.yaml"
+[[ -f "$BLUEPRINT" ]] || fatal "no blueprint.yaml in $VULPIX_CONFIG"
+manual_packages=()
+for pkg_dir in "$MANUAL_ROOT/packages/"*; do
+  pkg=$(basename "$pkg_dir")
+  [[ -d "$pkg_dir" ]] || continue
+  [[ -d "$VULPIX_INSTALL/library/packages/$pkg" ]] || continue
+  manual_packages+=("${pkg}@manual")
+done
+debug "manual_packages: ${manual_packages[@]}"
+yq_set_array '.packages' manual_packages "$BLUEPRINT" --append || fatal "invalid yaml at $BLUEPRINT"
+
+echo # style
 
 # step 4: vuplix first run ------------------------------------------------------------------------
 
-# TODO
+info "everything should be bootstrapped, but we have to run vulpix for the first time to make env/packages permanent"
+info 'running vulpix for initialization (you will have to rerun bootstrap if this fails)'
+prompt "ready to kick off?" || fatal 'bootstrap aborted'
+VULPIX="$VULPIX_INSTALL" bash "$VULPIX_INSTALL/bin/vulpix"

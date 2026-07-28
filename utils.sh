@@ -240,6 +240,10 @@ dir_link() {
   # TODO: windows junction, checks ect.
 }
 
+dir_is_empty() {
+  [ -z "$(ls -A "$1")" ]
+}
+
 # environmental variables -------------------------------------------------------------------------
 
 get_os
