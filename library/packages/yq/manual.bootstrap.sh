@@ -15,8 +15,7 @@ get_version() {
 
 get_latest_github_tag() {
   curl -L --fail -s "https://api.github.com/repos/$REPO/releases/latest" |
-    grep -E -o '.*"tag_name".*:.+' |
-    sed 's/^.*:\s*"\(.*\)".*$/\1/'
+    sed -nE 's/^.*"tag_name"\s*:\s*"(v[0-9]+(\.[0-9]+){2})".*$/\1/p'
 }
 
 # exports $OS as 'windows' | 'linux' | 'mac'

@@ -117,6 +117,125 @@ trimstring() {
   return 0
 }
 
+array_has_element() {
+  local -n array=$1
+  for element in "${array[@]}"; do
+    if [[ "$element" == "$2" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+__sourced=()
+source_script() {
+  [[ -f "$1" ]] || fatal "could not source nonexistent '$1'"
+  for script in "${__sourced[@]}"; do
+    [[ "$1" -ef "$script" ]] && return
+  done
+  source "$1" || fatal "failed to source '$1'"
+  __sourced+=("$1")
+}
+
+_yq_implementation() {
+  [[ $(yq --version) == *mikefarah* ]] && echo go || echo python
+}
+
+yq_safe() {
+  local args=("$@")
+  for ((i = 0; $i < ${#args[@]}; i++)); do
+    case "${args[$i]}" in
+      -i | --in-place)
+        case "$(_yq_implementation)" in
+          python) args+=('-Y') ;;
+          go) args[$i]='--inplace' ;;
+        esac
+        ;;
+    esac
+  done
+  yq "${args[@]}"
+}
+
+yq_get_array() {
+  local -n array=$1
+  local query=$2 file=$3
+  shift && shift && shift
+  array=()
+  _array=$(yq_safe -r "$@" "$query" "$file") || return 1
+  [[ -z "$_array" ]] && return
+  readarray -t _array <<<"$_array" && array=("${_array[@]}")
+}
+
+yq_set_array() {
+  local -n array=$2
+  local query=$1 file=$3
+  shift && shift && shift
+  [[ "$1" == '--append' ]] && local op_mod='+' && shift
+  yq_safe --in-place "$@" \
+    "$query $op_mod= [\""$(
+      IFS="\",\""
+      echo "${array[*]}"
+    )'"]' \
+    "$file"
+}
+
+yq_has_key() {
+  local query=$1 key=$2 file=$3
+  case $(_yq_implementation) in
+    go)
+      has_key=$(yq_safe $query' | has("'$key'")' "$file")
+      $has_key
+      return $?
+      ;;
+    python)
+      local keys=()
+      yq_get_array keys $query' | keys[]' "$file"
+      array_has_element keys "$key"
+      return $?
+      ;;
+  esac
+}
+
+# git bash on windows is iffy about detecting junctions as existing using just [ -e ... ]
+item_exists() {
+  [[ -e "$1" ]] || ls "$1" &>/dev/null
+}
+
+# functions for atomic item (file or directory) change through a temporary directory
+atomic_change_start() {
+  local item="$1" tmpitem="$1.temp"
+  ! item_exists "$tmpitem" || fatal '_atomic_change_start used incorrectly by devs!'
+  item_exists "$item" && cp --recursive --no-dereference --preserve=links "$item" "$tmpitem"
+  echo "$tmpitem"
+}
+atomic_change_abort() {
+  local item="$1" tmpitem="$1.temp"
+  rm -fr "$tmpitem"
+}
+atomic_change_apply() {
+  local item="$1" tmpitem="$1.temp"
+  item_exists "$tmpitem" || fatal '_atomic_change_apply used incorrectly by devs!'
+  rm -fr "$item" && mv "$tmpitem" "$item"
+}
+
+# returns 0 if link created, else 1
+file_link() {
+  local link=$1 target=$2
+  if item_exists "$link" && ! [[ "$(readlink "$link" 2>/dev/null)" -ef "$target" ]]; then
+    warn "item exists at file link target '$link'"
+    prompt 'overwrite?'
+  fi
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
+  # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
+}
+
+# returns 0 if link created, else 1
+dir_link() {
+  local link=$1 target=$2
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
+  # TODO: windows junction, checks ect.
+}
+
 # environmental variables -------------------------------------------------------------------------
 
 get_os
