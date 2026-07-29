@@ -73,6 +73,11 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
 > [Git for Windows](https://git-scm.com/install/windows) (the main alternative is WSL, but that's
 > less efficient so it requires explicit setup).
 
+> [!WARNING]
+>
+> windows hasn't fully been tested so there's likely lots of bugs... await v1.1 for windows-oriented
+> fixes/features.
+
 ## usage
 
     HELP=$"usage: vulpix [opts] [subcommand]
