@@ -30,10 +30,9 @@ if [[ $? -ne 0 ]]; then
 fi
 echo # style
 
-if ! is_root && prompt 'want to install system-wide?'; then
-  info 'rerun this script as admin/root/sudo to install globally'
-  exit
-fi
+info 'will install at highest privilege (run with root to install globally)'
+is_root && level=system || level=user
+prompt "continue with bootstrap at $level level?" || fatal 'bootstrap aborted'
 
 # define MANUAL_ROOT, which SHOULD BE THE SAME as defined in `library/managers/manual.sh`
 MANUAL_ROOT="$VULPIX_DATA/manual"
@@ -134,33 +133,35 @@ echo # style
 
 # step 3: init blueprint and config stuff ---------------------------------------------------------
 
-info "copying default config to $VULPIX_CONFIG"
 mkdir -p "$VULPIX_CONFIG"
+use_defaults=true
 if ! dir_is_empty "$VULPIX_CONFIG"; then
   warn "$VULPIX_CONFIG not empty"
   warn "if you don't use the defaults, some setup may not work correctly"
-  ! prompt 'are you sure you want to keep the current configuration and skip core defaults?'
-else
-  true
+  prompt 'keep the current configuration and skip core defaults?' && use_defaults=false
 fi
-[[ $? -eq 0 ]] && {
-  debug 'copying config.default'
+if $use_defaults; then
+  info "copying default config to $VULPIX_CONFIG"
   rm -fr "$VULPIX_CONFIG"
   cp --recursive "$VULPIX_INSTALL/config.default" "$VULPIX_CONFIG"
-}
+fi
 
-# update blueprint.yaml to reflect manual manager packages
 BLUEPRINT="$VULPIX_CONFIG/blueprint.yaml"
 [[ -f "$BLUEPRINT" ]] || fatal "no blueprint.yaml in $VULPIX_CONFIG"
-manual_packages=()
+
+# update blueprint.yaml to reflect manual manager packages
+info "updating blueprint.yaml to include bootstrapped packages"
+blueprint_packages=()
+yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" || fatal "invalid yaml at $BLUEPRINT"
+debug "original blueprint_packages: ${blueprint_packages[@]}"
 for pkg_dir in "$MANUAL_ROOT/packages/"*; do
-  pkg=$(basename "$pkg_dir")
   [[ -d "$pkg_dir" ]] || continue
+  pkg=$(basename "$pkg_dir")
   [[ -d "$VULPIX_INSTALL/library/packages/$pkg" ]] || continue
-  manual_packages+=("${pkg}@manual")
+  array_has_element blueprint_packages "${pkg}@manual" || blueprint_packages+=("${pkg}@manual")
 done
-debug "manual_packages: ${manual_packages[@]}"
-yq_set_array '.packages' manual_packages "$BLUEPRINT" --append || fatal "invalid yaml at $BLUEPRINT"
+debug "blueprint_packages with bootstrapped: ${blueprint_packages[@]}"
+yq_set_array '.packages' blueprint_packages "$BLUEPRINT" || fatal "invalid yaml at $BLUEPRINT"
 
 echo # style
 

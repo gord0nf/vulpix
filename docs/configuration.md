@@ -8,10 +8,10 @@ information:
 
 - vulpix settings
 - target packages
-- target configuration
+- target configuration (see [config scripts](#config-scripts))
 
 the vulpix cli applies the blueprint to the system. see `config.default/blueprint.yaml` for an
-example.
+example. the blueprint is located at `$VULPIX_CONFIG/blueprint.yaml`.
 
 ### yaml schema
 
@@ -21,5 +21,96 @@ properties:
         type: array
         items:
             type: string
+    config:
+        type: object
+        properties:
+            global: {} # user defined value/properties
+        patternProperties:
+            '.*': # package name
+                {} # user defined value/properties
 required: [packages]
 ```
+
+## config scripts
+
+the root level `config` property in the [blueprint](#blueprint) has each key corresponding to a
+package, with the exception of 'global'. this corresponds to scripts in `$VULPIX_CONFIG/config` that
+apply the config details of the blueprint to the system:
+
+```
+$VULPIX_CONFIG/config/
+├─ global.sh # entrypoint script for global
+├─ global.d/
+│  ├─ 00-some-system-script.sh
+│  ├─ 00-windows-only-script.ps1
+│  ├─ 50-upstream-script.sh
+│  └─ ...whatever other scripts
+├─ $PACKAGE.sh # entrypoint script for $PACKAE
+├─ $PACKAGE.d/
+│  └─ ...whatever scripts that config $PACKAGE (same format as above)
+└─ ...other scripts and *.d dirs for package config
+```
+
+all of these scripts are optional.
+
+> [!NOTE]
+>
+> `package.d/` style directories can contain powershell scripts but these are only run on windows.
+
+you can think of the `config` blueprint property, being your custom configuration blueprint that
+models the system. in this case, your config scripts would be the bridge that actually applies the
+config blueprint. this is useful to put in your dotfiles repo.
+
+### developing
+
+> [!TIP]
+>
+> you should be mindful of [how much](#connection-with-cli) these scripts are executed with the cli
+> because it can siginficantly hinder cli execution if they contain heavy operations.
+
+in general, each script should:
+
+- do the minimal possible to achieve goal
+- be re-executable, because they probably will be executed relatively often
+
+personally, i'd favor `package.d/` scripts, as each script would be small, be self-contained, and do
+just one thing. i wouldn't use the entrypoint `package.sh` unless i had to.
+
+#### accessing blueprint configuration
+
+use the hardcoded `blueprint_query()` or its wrapper, `config_query()`. these function use yq so
+they support complex expressions, but note that the
+[two yq implmentations](https://linuxcommandlibrary.com/man/yq#caveats) sometimes have different
+syntax. if the query result is an array and a nameref is passed as the second arg, it automagically
+loads it into a bash array.
+
+NOTE: `config_query()` just prepends '.config.$package' to the query and runs `blueprint_query()`
+
+#### shared utilities
+
+in addition to all the utililties in `utils.sh` in this repo, all of
+`$VULPIX_CONFIG/config/shared/*.sh` are sourced before executing any config script.
+
+### imporant notes
+
+#### execution order
+
+if it exists, `$VULPIX_CONFIG/config/$PACKAGE.sh` is always run first, then
+`$VULPIX_CONFIG/config/$PACKAGE.d/*.{sh,ps1}` are run in the standard order. if you've configured
+linux system tools, you'll recognize the `nn-...` naming standard (like `00-name.sh`), which is
+recommended to control execution order.
+
+#### connection with cli
+
+any running of `vulpix config ...` always runs `global.sh` and/or all the scripts in `global.d/`. so
+you'd want to keep these lightweight.
+
+`vulpix config all|...packages` runs config for the specified packages (in addition to global
+config).
+
+`vulpix` with no subcommand automagically runs `vulpix config all` (after clean, install, etc.).
+
+#### default configuration scripts
+
+`bootstrap.sh` will copy everything in `config.default/` to `$VUPLIX_CONFIG`.
+`config.default/config/` contain scripts that are **HIGHLY RECOMMENDED**, because they:

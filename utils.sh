@@ -127,6 +127,14 @@ array_has_element() {
   return 1
 }
 
+# use like join_by 'sep' "${array[@]}"
+join_by() {
+  local d=${1-} f=${2-}
+  if shift 2; then
+    printf %s "$f" "${@/#/$d}"
+  fi
+}
+
 __sourced=()
 source_script() {
   [[ -f "$1" ]] || fatal "could not source nonexistent '$1'"
@@ -175,11 +183,11 @@ yq_set_array() {
   local query=$1 file=$3
   shift && shift && shift
   [[ "$1" == '--append' ]] && local op_mod='+' && shift
+  [[ "${#array[@]}" -gt 0 ]] &&
+    local array_values="\"$(join_by '","' "${array[@]}")\""
+  [ -z "$(cat "$file")" ] && echo '{}' >"$file" # python yq doesn't handle empty files well
   yq_safe --in-place "$@" \
-    "$query $op_mod= [\""$(
-      IFS="\",\""
-      echo "${array[*]}"
-    )'"]' \
+    "$query $op_mod= [$array_values]" \
     "$file"
 }
 

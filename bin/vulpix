@@ -36,6 +36,7 @@ debug "using vulpix at: $VULPIX"
 
 # script dependencies
 source_script "$VULPIX/src/library.sh"
+source_script "$VULPIX/src/config_scripts.sh"
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
@@ -231,6 +232,7 @@ BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
 blueprint_packages=()
 yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" ||
 	fatal "failed to parse blueprint"
+debug "blueprint_packages: ${blueprint_packages[@]}"
 
 # look at scope_packages and prompt to add if not in blueprint
 floating_scope_packages=()
@@ -256,7 +258,7 @@ if $is_test; then
 	exit
 fi
 
-if $clean || $install || $reinstall; then
+if $clean || $install; then
 	debug 'manager stuff start'
 
 	# sort packages and scope_packages by manager
@@ -379,20 +381,24 @@ fi
 # config global, then packages --------------------------------------------------------------------
 
 if $config; then
-	# global
+	debug 'config stuff start'
 
-	# TODO
+	to_config=('global')
 
-	# packages --------------------------
 	if $config_packages; then
-
-		if [[ "${#scope_packages[@]}" -gt 0 ]]; then
-			config_packages=("${scope_packages[@]}")
-		else
-			config_packages=("${blueprint_packages}")
-		fi
-
-		# TODO
-
+		[[ "${#scope_packages[@]}" -gt 0 ]] &&
+			declare -n to_config_packages=scope_packages ||
+			declare -n to_config_packages=blueprint_packages
+		for package in "${to_config_packages[@]}"; do
+			parse_package "$package"
+			to_config+=("$parsed_package")
+		done
 	fi
+
+	debug "to_config: ${to_config[@]}"
+
+	# start in a subshell so config scripts don't clutter env
+	(configure_packages to_config)
+
+	debug 'config stuff end'
 fi
