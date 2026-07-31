@@ -2,6 +2,8 @@
 
 set -e
 
+OVERRIDE_INSTALL="$1"
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 VULPIX_REPO='gord0nf/vulpix'
 VULPIX_REPO_GIT="https://github.com/$VULPIX_REPO"
@@ -85,15 +87,21 @@ download_source() {
   eval "$cmd"
 }
 
-if command_exists git && is_git_repo "$SCRIPT_DIR"; then
-  info "looks like you already cloned vulpix in script dir"
-  export VULPIX_INSTALL="$SCRIPT_DIR"
+[[ -v VULPIX_INSTALL ]] || fatal "devs didn't define VULPIX_INSTALL in utils.sh"
+
+if [[ -n "$OVERRIDE_INSTALL" ]]; then
+  export VULPIX_INSTALL="$OVERRIDE_INSTALL"
 else
-  [[ -d "$SCRIPT_DIR/.git" ]] &&
-    warn "looks like script dir might be git repo, but cannot verify"
+  if command_exists git && is_git_repo "$SCRIPT_DIR"; then
+    info "looks like you already cloned vulpix in script dir"
+    export VULPIX_INSTALL="$SCRIPT_DIR"
+  else
+    [[ -d "$SCRIPT_DIR/.git" ]] &&
+      warn "looks like script dir might be git repo, but cannot verify"
+  fi
 fi
 
-info "installing at: $VULPIX_INSTALL" # defined by default from utils.sh
+info "installing at: $VULPIX_INSTALL"
 prompt 'is this a good place to install?' || {
   read -p 'enter install dir: ' VULPIX_INSTALL
   VULPIX_INSTALL=$(convert_path_if_needed --unix "$VULPIX_INSTALL")
