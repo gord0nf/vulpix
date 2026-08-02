@@ -274,14 +274,18 @@ if [[ $OS == windows ]]; then
 fi
 
 # VULPIX_INSTALL
-if is_root; then
-  [[ $OS == windows ]] &&
-    VULPIX_INSTALL="$ProgramFiles/vulpix" ||
-    VULPIX_INSTALL="/opt/vulpix"
+if [[ -v VULPIX ]]; then
+  VULPIX_INSTALL="$VULPIX" # cli requires $VULPIX as dir with vulpix source
 else
-  [[ $OS == windows ]] &&
-    VULPIX_INSTALL="$LOCALAPPDATA/Programs/vulpix" ||
-    VULPIX_INSTALL="$HOME/.local/opt/vulpix"
+  if is_root; then
+    [[ $OS == windows ]] &&
+      VULPIX_INSTALL="$ProgramFiles/vulpix" ||
+      VULPIX_INSTALL="/opt/vulpix"
+  else
+    [[ $OS == windows ]] &&
+      VULPIX_INSTALL="$LOCALAPPDATA/Programs/vulpix" ||
+      VULPIX_INSTALL="$HOME/.local/opt/vulpix"
+  fi
 fi
 export VULPIX_INSTALL
 
