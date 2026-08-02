@@ -89,6 +89,19 @@ download_source() {
 
 [[ -v VULPIX_INSTALL ]] || fatal "devs didn't define VULPIX_INSTALL in utils.sh"
 
+# determine whether vulpix is already install (if so, we'll basically be updating by bootstrapping)
+debug "VULPIX=$VULPIX"
+if [[ -z "$OVERRIDE_INSTALL" && -v VULPIX ]]; then
+  if [[ -d "$VULPIX" ]]; then
+    info 'bootstrapping/updating existing installation at $VULPIX'
+    OVERRIDE_INSTALL="$VULPIX"
+  else
+    warn '$VULPIX is env var but is not a valid directory'
+    warn 'cannot determine whether to bootstrap existing installation'
+  fi
+fi
+
+# check if OVERRIDE_INSTALL or if script dir is a git repo (which we assume is the vulpix repo)
 if [[ -n "$OVERRIDE_INSTALL" ]]; then
   export VULPIX_INSTALL="$OVERRIDE_INSTALL"
 else

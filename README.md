@@ -119,17 +119,17 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
                               those packages. If 'all' is passed, all packages'
                               configs are ran.
 
-      reinstall ...packages    uninstalls then reinstalls specified packages (or all
-                              packages if none specified). prompts to add to
+      reinstall ...packages    Uninstalls then reinstalls specified packages (or all
+                              packages if none specified). Prompts to add to
                               blueprint if specified packages isn't there.
 
-      dotfiles  <path>        creates symlinks from stuff in dotfiles path
-                              to all the correct locations. if <path> is not
+      dotfiles  <path>        Creates symlinks from stuff in dotfiles path
+                              to all the correct locations. If <path> is not
                               supplied, uses the path in blueprint.yaml.
 
-      edit                    opens config directory in \$EDITOR or \$VISUAL.
+      edit                    Opens config directory in \$EDITOR or \$VISUAL.
 
-      bootstrap               updates vulpix and reruns bootstrap script; useful if
-                              you broke something.
+      bootstrap               Updates vulpix and reruns bootstrap script. Use if you
+                              1) want to update vulpix, or 2) broke something.
 
     NOTE: ...packages are passed like package_name@manager (example: neovim@manual).
