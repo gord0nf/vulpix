@@ -20,12 +20,13 @@ _get_install_dir() {
 }
 
 _get_bin_link_filename() {
-  local package=$1 relative_path=$2
+  local package=$1 relative_path=$(normalize_path "$2")
+  [[ "$relative_path" == '.' ]] && relative_path=
   local path="$(_get_install_dir "$1")/$relative_path"
   if [[ -f "$path" ]]; then
     echo "$(basename "$path")"
   elif [[ -d "$path" ]]; then
-    echo "${package}_${relative_path//\//_}"
+    echo "${package}${relative_path:+_${relative_path//\//_}}"
   else
     warn "manager(manual): invalid binary '$relative_path' for $package"
   fi
