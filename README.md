@@ -80,7 +80,7 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
 
 ## usage
 
-    HELP=$"usage: vulpix [opts] [subcommand]
+    usage: vulpix [opts] [subcommand]
 
     If run as root, applies changes at system level, else only applies at user
     level. This also effects where it looks for app dirs (like configuration).
@@ -90,8 +90,6 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
       -h, --help        print help
       -b, --blueprint   specify blueprint yaml path, otherwise searches default
                         locations
-      -d, --dotfiles    specify path to dotfiles repo, otherwise looks at blueprint
-                        for path
 
     subcommands:
 
@@ -125,12 +123,13 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
                               packages if none specified). prompts to add to
                               blueprint if specified packages isn't there.
 
-      dotfiles                creates symlinks from stuff in dotfiles path (see
-                              --dotfiles option) to all the correct locations.
+      dotfiles  <path>        creates symlinks from stuff in dotfiles path
+                              to all the correct locations. if <path> is not
+                              supplied, uses the path in blueprint.yaml.
 
       edit                    opens config directory in \$EDITOR or \$VISUAL.
 
       bootstrap               updates vulpix and reruns bootstrap script; useful if
                               you broke something.
 
-    NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."
+    NOTE: ...packages are passed like package_name@manager (example: neovim@manual).

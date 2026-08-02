@@ -233,10 +233,6 @@ atomic_change_apply() {
 # returns 0 if link created, else 1
 file_link() {
   local link=$1 target=$2
-  if item_exists "$link" && ! [[ "$(readlink "$link" 2>/dev/null)" -ef "$target" ]]; then
-    warn "item exists at file link target '$link'"
-    prompt 'overwrite?'
-  fi
   MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
 }
@@ -250,6 +246,18 @@ dir_link() {
 
 dir_is_empty() {
   [ -z "$(ls -A "$1")" ]
+}
+
+normalize_path() {
+  local path="$1"
+  if [[ "$path" != "/" ]]; then
+    path="${path%/}"
+  fi
+  path="${path//\/.\//\/}"
+  while [[ $path =~ ([^/][^/]*/\.\\./) ]]; do
+    path="${path/${BASH_REMATCH[0]}/}"
+  done
+  echo "$path"
 }
 
 # environmental variables -------------------------------------------------------------------------

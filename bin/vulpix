@@ -36,26 +36,31 @@ debug "using vulpix at: $VULPIX"
 
 # script dependencies
 source_script "$VULPIX/src/library.sh"
+source_script "$VULPIX/src/dotfiles.sh"
 source_script "$VULPIX/src/config_scripts.sh"
+
+get_blueprint() {
+	local bp="${1:-$VULPIX_CONFIG/blueprint.yaml}"
+	[[ -f "$bp" ]] || fatal "no blueprint at $bp"
+	echo "$bp"
+}
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
-If run as root, applies changes at system level, else only applies at user 
+If run as root, applies changes at system level, else only applies at user
 level. This also effects where it looks for app dirs (like configuration).
 
 options:
 
   -h, --help        print help
-  -b, --blueprint   specify blueprint yaml path, otherwise searches default 
+  -b, --blueprint   specify blueprint yaml path, otherwise searches default
                     locations
-  -d, --dotfiles    specify path to dotfiles repo, otherwise looks at blueprint
-                    for path
 
 subcommands:
 
   [none]    ...packages   Syncs system/user with blueprint. Equivalent of running
                           'clean', then 'install ...packages', then 'config
-                          ...packages' subcommands, where ...packages are the 
+                          ...packages' subcommands, where ...packages are the
                           packages passed as args. If no packages are passed,
                           execution is the same, but the '--all' arg is appended
                           to the 'config' cmd.
@@ -71,25 +76,26 @@ subcommands:
                           require the package to be added to the blueprint
                           before continuing. If any packages are passed,
                           installation sync will only occur for the specified
-                          packages, else the entire blueprint is synced. 
+                          packages, else the entire blueprint is synced.
 
   config    ...packages|all Syncs *config* of packages with blueprint. It
                             always runs the global config. If any packages are
                           passed as args, it runs the config corresponding to
                           those packages. If 'all' is passed, all packages'
-                          configs are ran. 
+                          configs are ran.
 
   reinstall ...packages    uninstalls then reinstalls specified packages (or all
                           packages if none specified). prompts to add to
                           blueprint if specified packages isn't there.
 
-  dotfiles                creates symlinks from stuff in dotfiles path (see
-                          --dotfiles option) to all the correct locations.
+  dotfiles  <path>        creates symlinks from stuff in dotfiles path
+                          to all the correct locations. if <path> is not
+                          supplied, uses the path in blueprint.yaml.
 
   edit                    opens config directory in \$EDITOR or \$VISUAL.
 
   bootstrap               updates vulpix and reruns bootstrap script; useful if
-                          you broke something. 
+                          you broke something.
 
 NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."
 
@@ -121,11 +127,6 @@ while [[ $# -gt 0 ]]; do
 		blueprint_path="$2"
 		shift
 		;;
-	--dotfiles | -d)
-		[[ $# -ge 2 ]] || fatal 'expected arg for --dotfiles'
-		dotfiles_path="$2"
-		shift
-		;;
 	-*) fatal "invalid option '$1'" ;;
 	*)
 		if ! $first_arg_passed; then
@@ -144,14 +145,29 @@ done
 
 debug "is_test=$is_test"
 debug "blueprint_path=$blueprint_path"
-debug "dotfiles_path=$dotfiles_path"
 debug "subcommand=$subcommand"
 debug "subcommand args: ${subcommand_args[@]}"
 
 # process subcommand ------------------------------------------------------------------------------
 
 dotfiles_subcommand() {
-	: # TODO
+	[[ "${#subcommand_args[@]}" -gt 1 ]] && fatal 'invalid number of subcommand args'
+	dotfiles_path="${subcommand_args[0]}"
+
+	# get dotfiles path from blueprint if necessary
+	if [[ -z "$dotfiles_path" ]]; then
+		debug 'getting dotfiles path from blueprint'
+		BLUEPRINT=$(get_blueprint "$blueprint_path")
+		dotfiles_path=$(yq_safe -r '.dotfiles' "$BLUEPRINT") || fatal 'failed to parse blueprint'
+		[[ -z "$dotfiles_path" || "$dotfiles_path" == 'null' ]] && {
+			err 'please specify in blueprint or as option'
+			fatal 'could not find dotfiles entry in blueprint'
+		}
+	fi
+
+	debug "dotfiles=$dotfiles_path"
+	[[ -d "$dotfiles_path" ]] || fatal "no directory at '$dotfiles_path'"
+	setup_dotfiles "$dotfiles_path" || fatal 'dotfiles setup failed'
 }
 
 edit_subcommand() {
@@ -226,8 +242,7 @@ debug "scope: ${scope_packages[@]}"
 
 # load blueprint ----------------------------------------------------------------------------------
 
-BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
-[[ -f "$BLUEPRINT" ]] || fatal "no blueprint at $BLUEPRINT"
+BLUEPRINT=$(get_blueprint "$blueprint_path")
 
 blueprint_packages=()
 yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" ||
@@ -243,6 +258,7 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 	debug "floating_scope_packages: ${floating_scope_packages[@]}"
 	echo "The following packages were provided but are not in blueprint:"
 	printf '    %s\n' "${floating_scope_packages[@]}"
+	echo
 	prompt "Add all of them to blueprint to continue?" ||
 		fatal 'aborted... packages must be defined in blueprint'
 
