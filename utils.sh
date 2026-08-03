@@ -6,9 +6,6 @@
 # functions ---------------------------------------------------------------------------------------
 
 # basic default logging
-output() {
-  echo "OUTPUT: $*"
-}
 debug() {
   if [[ -v DEBUG ]]; then echo "DEBUG: $*" >&2; fi
 }
@@ -18,12 +15,41 @@ info() {
 warn() {
   echo "WARN: $*" >&2
 }
+success() {
+  echo "SUCCESS: $*" >&2
+}
 err() {
   echo "ERROR: $*" >&2
 }
 fatal() {
   echo "FATAL: $*" >&2
   exit 1
+}
+output() {
+  # if arg ends in \, no newline
+  [[ "$*" != *'\' ]] && echo "$*" || printf "$*"
+  read -t 0 && cat # also log stdin
+}
+log_input() {
+  : # do not reprint user input
+}
+
+verify() {
+  output "$1 (y/n): \\"
+  read -n 1 -r REPLY
+  log_input "$REPLY"
+  echo # new line
+  case $REPLY in
+    [yY]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+prompt() {
+  output "$1\\"
+  read REPLY
+  log_input "$REPLY"
+  echo "$REPLY"
 }
 
 command_exists() {
@@ -73,15 +99,6 @@ is_git_repo() {
   git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
 }
 
-prompt() {
-  read -n 1 -r -p "$1 (y/n): " answer
-  echo # new line
-  case $answer in
-    [yY]*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 convert_path_if_needed() {
   local target_switch=$1
   local path=$2
@@ -100,10 +117,7 @@ function_exists() {
 
 # https://jcgoran.github.io/2021/02/07/bash-string-trimming.html
 trimstring() {
-  if [ $# -ne 1 ]; then
-    echo "USAGE: trimstring [STRING]"
-    return 1
-  fi
+  [ $# -ne 1 ] && return 1
   s="${1}"
   size_before=${#s}
   size_after=0
@@ -165,7 +179,8 @@ yq_safe() {
         ;;
     esac
   done
-  yq "${args[@]}"
+  yq "${args[@]}" \
+    2> >(output >&2) # log yq info/err messages
 }
 
 yq_get_array() {
@@ -233,14 +248,14 @@ atomic_change_apply() {
 # returns 0 if link created, else 1
 file_link() {
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link" 2> >(output)
   # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
 }
 
 # returns 0 if link created, else 1
 dir_link() {
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link" 2> >(output)
   # TODO: windows junction, checks ect.
 }
 
@@ -258,6 +273,13 @@ normalize_path() {
     path="${path/${BASH_REMATCH[0]}/}"
   done
   echo "$path"
+}
+
+# add color to stdout
+colorize() {
+  printf "${1}"
+  cat
+  printf "$RESET"
 }
 
 # environmental variables -------------------------------------------------------------------------
@@ -324,3 +346,14 @@ else
     VULPIX_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vulpix"
 fi
 export VULPIX_CONFIG
+
+# ansi color codes
+RESET="\e[0m"
+BLACK="\e[30m"
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+PINK="\e[35m"
+CYAN="\e[36m"
+WHITE="\e[37m"

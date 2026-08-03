@@ -10,6 +10,35 @@ _get_config_scripts() {
   done
 }
 
+_configure_package() {
+  local package=$1
+  _get_config_scripts "$package" # loads $scripts
+
+  [[ "${#scripts[@]}" -gt 0 ]] || {
+    output "no scripts"
+    return
+  }
+
+  info "running '$package' scripts"
+  for script in "${scripts[@]}"; do
+    local rscript=$(realpath --relative-to "$CONFIG_SCRIPTS" "$script")
+    case $script in
+      *.sh)
+        info "$rscript"
+        # start in subshell for its very own env
+        (source "$script") || warn "config: $package: failed $rscript"
+        ;;
+      *.ps1)
+        if [[ $OS == 'windows' ]]; then
+          info "$rscript"
+          powershell "$script" || warn "config: $package: failed $rscript"
+        fi
+        ;;
+    esac
+  done
+
+}
+
 configure_packages() {
   local -n packages=$1
   shopt -s nullglob
@@ -22,31 +51,7 @@ configure_packages() {
   done
 
   for package in "${packages[@]}"; do
-    _get_config_scripts "$package" # loads $scripts
-
-    [[ "${#scripts[@]}" -gt 0 ]] || {
-      info "config: no scripts for '$package'"
-      continue
-    }
-
-    info "config: running '$package' scripts"
-    for script in "${scripts[@]}"; do
-      local rscript=$(realpath --relative-to "$CONFIG_SCRIPTS" "$script")
-      case $script in
-        *.sh)
-          info "config: $rscript"
-          # start in subshell for its very own env
-          (source "$script") || warn "config: $package: failed $rscript"
-          ;;
-        *.ps1)
-          if [[ $OS == 'windows' ]]; then
-            info "config: $rscript"
-            powershell "$script" || warn "config: $package: failed $rscript"
-          fi
-          ;;
-      esac
-
-    done
+    run_task "${package}_config" _configure_package "$package"
   done
 
   shopt -u nullglob

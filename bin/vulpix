@@ -26,11 +26,12 @@ if ! [[ -d "$VULPIX" ]]; then
 fi
 export VULPIX="$VULPIX"
 
-# source utils ASAP
+# source utils and logging ASAP
 [[ -f "$VULPIX/utils.sh" ]] && source "$VULPIX/utils.sh" || {
 	echo 'failed to source $VULPIX/utils.sh' >&2
 	exit 1
 }
+source_script "$VULPIX/src/logging.sh"
 
 debug "using vulpix at: $VULPIX"
 
@@ -259,7 +260,7 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 	echo "The following packages were provided but are not in blueprint:"
 	printf '    %s\n' "${floating_scope_packages[@]}"
 	echo
-	prompt "Add all of them to blueprint to continue?" ||
+	verify "Add all of them to blueprint to continue?" ||
 		fatal 'aborted... packages must be defined in blueprint'
 
 	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
@@ -267,12 +268,8 @@ fi
 
 # install packages --------------------------------------------------------------------------------
 
-# test = print all the parsed stuff
-if $is_test; then
-	echo 'packages:'
-	printf '  %s\n' "${blueprint_packages[@]}"
-	exit
-fi
+# test = exit before doing anything
+$is_test && exit
 
 if $clean || $install; then
 	debug 'manager stuff start'
@@ -313,8 +310,9 @@ if $clean || $install; then
 
 			if function_exists presetup; then
 				info "running $manager presetup"
-				presetup || fatal "$manager presetup failed"
-				info "$manager prestup succeeded"
+				run_task "${manager}_presetup" presetup ||
+					fatal "$manager presetup failed"
+				success "$manager presetup succeeded"
 			fi
 
 			installed_packages=()
@@ -359,7 +357,7 @@ if $clean || $install; then
 					info 'cleaning packages'
 					uninstall_packages to_uninstall
 				else
-					info 'no packages to clean'
+					output 'no packages to clean'
 				fi
 			fi
 
@@ -368,7 +366,7 @@ if $clean || $install; then
 					info 'installing packages'
 					install_packages to_install
 				else
-					info 'no packages to install'
+					output 'no packages to install'
 				fi
 
 				$reinstall_instead_of_update && update_kw=reinstall || {
@@ -379,14 +377,15 @@ if $clean || $install; then
 					info "${update_verb:-$update_kw}ing packages"
 					${update_kw}_packages to_update
 				else
-					info "no packages to $update_kw"
+					output "no packages to $update_kw"
 				fi
 			fi
 
 			if function_exists postsetup; then
 				info "running $manager postsetup"
-				postsetup || fatal "$manager postsetup failed"
-				info "$manager postsetup succeeded"
+				run_in_log_context "${manager}_postsetup" postsetup ||
+					fatal "$manager postsetup failed"
+				success "$manager postsetup succeeded"
 			fi
 		)
 	done

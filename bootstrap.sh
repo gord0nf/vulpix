@@ -24,7 +24,7 @@ else
 fi
 
 # download utils script and source just for bootstrap
-echo "INFO: downloading utils script"
+echo "INFO: downloading utils script" >&2
 source <(eval "$DOWNLOAD '$VULPIX_REPO_RAW/utils.sh'")
 if [[ $? -ne 0 ]]; then
   echo 'FATAL: failed to download and source utils script'
@@ -34,7 +34,7 @@ echo # style
 
 info 'will install at highest privilege (run with root to install globally)'
 is_root && level=system || level=user
-prompt "continue with bootstrap at $level level?" || fatal 'bootstrap aborted'
+verify "continue with bootstrap at $level level?" || fatal 'bootstrap aborted'
 
 # define MANUAL_ROOT, which SHOULD BE THE SAME as defined in `library/managers/manual.sh`
 MANUAL_ROOT="$VULPIX_DATA/manual"
@@ -67,12 +67,11 @@ bootstrap_package() {
 # step 1: install source --------------------------------------------------------------------------
 
 clone_source() {
-  git clone "$VULPIX_REPO_GIT" "$1"
+  git clone "$VULPIX_REPO_GIT" "$1" &> >(output)
 }
 
 update_source() {
-  git -C "$1" pull origin main &&
-    git -C "$1" checkout main
+  git -C "$1" pull origin main && git -C "$1" checkout main &> >(output)
 }
 
 download_source() {
@@ -80,11 +79,11 @@ download_source() {
   cmd="$DOWNLOAD '$VULPIX_REPO_TARBALL' | $tar_cmd"
   if ! dir_is_empty "$1"; then
     warn "install dir not empty ($1)"
-    prompt "overwrite to continue?" || fatal 'install aborted'
+    verify "overwrite to continue?" || fatal 'install aborted'
   fi
   rm -fr "$1" &>/dev/null
   mkdir -p "$1"
-  eval "$cmd"
+  eval "$cmd" &> >(output)
 }
 
 [[ -v VULPIX_INSTALL ]] || fatal "devs didn't define VULPIX_INSTALL in utils.sh"
@@ -115,8 +114,8 @@ else
 fi
 
 info "installing at: $VULPIX_INSTALL"
-prompt 'is this a good place to install?' || {
-  read -p 'enter install dir: ' VULPIX_INSTALL
+verify 'is this a good place to install?' || {
+  VULPIX_INSTALL=$(prompt 'enter install dir: ')
   VULPIX_INSTALL=$(convert_path_if_needed --unix "$VULPIX_INSTALL")
   export VULPIX_INSTALL="${VULPIX_INSTALL/#~/$HOME}"
   debug "install dir: $VULPIX_INSTALL"
@@ -159,7 +158,7 @@ use_defaults=true
 if ! dir_is_empty "$VULPIX_CONFIG"; then
   warn "$VULPIX_CONFIG not empty"
   warn "if you don't use the defaults, some setup may not work correctly"
-  prompt 'keep the current configuration and skip core defaults?' && use_defaults=false
+  verify 'keep the current configuration and skip core defaults?' && use_defaults=false
 fi
 if $use_defaults; then
   info "copying default config to $VULPIX_CONFIG"
@@ -190,5 +189,5 @@ echo # style
 
 info "everything should be bootstrapped, but we have to run vulpix for the first time to make env/packages permanent"
 info 'running vulpix for initialization (you will have to rerun bootstrap if this fails)'
-prompt "ready to kick off?" || fatal 'bootstrap aborted'
+verify "ready to kick off?" || fatal 'bootstrap aborted'
 VULPIX="$VULPIX_INSTALL" bash "$VULPIX_INSTALL/bin/vulpix"

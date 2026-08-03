@@ -16,7 +16,7 @@ _install_fonts() {
       cp -r "$fontdir/"* "$FONT_INSTALL"
       find "$FONT_INSTALL" -type d -print0 | xargs -0 chmod 755
       find "$FONT_INSTALL" -type f -print0 | xargs -0 chmod 644
-      command_exists fc-cache && fc-cache
+      command_exists fc-cache && fc-cache | output
       ;;
   esac
 }
@@ -98,8 +98,8 @@ setup_dotfiles() {
     echo "The following items will be overwritting and replaced by links:"
     printf '  %s\n' "${existing_items[@]}"
     echo
-    prompt "Are you sure you want to continue?" &&
-      prompt "All these items will be deleted..." ||
+    verify "Are you sure you want to continue?" &&
+      verify "All these items will be deleted..." ||
       fatal 'aborted'
     for item in "${existing_items[@]}"; do
       rm -fr "$item" || fatal "failed to remove '$item'"
@@ -112,7 +112,7 @@ setup_dotfiles() {
     for item in "${!links[@]}"; do
       link="${links[$item]}"
       [[ -d "$item" ]] && itype=dir || itype=file
-      _print_pretty_link "$item" >&2
+      _print_pretty_link "$item" | output
       "${itype}_link" "$link" "$item" || fatal "couldn't creating link at '$link'"
     done
   else

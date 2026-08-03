@@ -51,7 +51,7 @@ _activate_package() {
       dir_link "$bin_link" "$bin_path" ||
       file_link "$bin_link" "$bin_path"
     [[ $? -eq 0 ]] || {
-      error "couldn't create link from '$bin_path' to '$bin_link'"
+      err "couldn't create link from '$bin_path' to '$bin_link'"
       atomic_change_abort "$BIN"
       return 1
     }
@@ -60,7 +60,7 @@ _activate_package() {
   yq_safe --in-place '.'$package'.active = true' "$STATUS" &&
     yq_safe --in-place '.'$package'.last_active = "'$(date +%Y-%m-%d)'"' "$STATUS"
   [[ $? -eq 0 ]] || {
-    error "couldn't update entry in $STATUS"
+    err "couldn't update entry in $STATUS"
     atomic_change_abort "$BIN"
     return 1
   }
@@ -85,14 +85,14 @@ _deactivate_package() {
       continue
     }
     rm "$bin_link" || {
-      error "manager(manual): couldn't remove link at '$bin_link'"
+      err "manager(manual): couldn't remove link at '$bin_link'"
       atomic_change_abort "$BIN"
       return 1
     }
   done
 
   yq_safe --in-place '.'$package'.active = false' "$STATUS" || {
-    error "couldn't update entry in $STATUS"
+    err "couldn't update entry in $STATUS"
     atomic_change_abort "$BIN"
     return 1
   }
@@ -232,7 +232,8 @@ install_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    _install_package "$package" || warn "manager(manual): package install failed for '$package'"
+    run_in_log_context "${package}_install" _install_package "$package" ||
+      warn "manager(manual): package install failed for '$package'"
   done
 }
 
@@ -243,7 +244,8 @@ uninstall_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    _uninstall_package "$package" || warn "manager(manual): package uninstall failed for '$package'"
+    run_in_log_context "${package}_uninstall" _uninstall_package "$package" ||
+      warn "manager(manual): package uninstall failed for '$package'"
   done
 }
 
@@ -254,7 +256,9 @@ update_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    _update_package "$package" || warn "manager(manual): package update failed for '$package'"
+
+    run_in_log_context "${package}_update" _update_package "$package" ||
+      warn "manager(manual): package update failed for '$package'"
   done
 }
 
@@ -265,6 +269,7 @@ reinstall_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    _reinstall_package "$package" || warn "manager(manual): package reinstall failed for '$package'"
+    run_in_log_context "${package}_reinstall" _reinstall_package "$package" ||
+      warn "manager(manual): package reinstall failed for '$package'"
   done
 }
