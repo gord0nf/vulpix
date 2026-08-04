@@ -42,7 +42,9 @@ debug "manual root: $MANUAL_ROOT"
 
 bootstrap_package() {
   info "bootstraping $1"
-  local script="library/packages/$1/manual.bootstrap.sh"
+  source_script "$VULPIX_INSTALL/library/managers/manual/utils.sh"
+
+  local script="library/packages/$1/manual.sh"
   local install_dir="$MANUAL_ROOT/packages/$1"
   debug "bootstrapping at $install_dir"
   if [[ -f "$VULPIX_INSTALL/$script" ]]; then
@@ -50,9 +52,11 @@ bootstrap_package() {
   else
     script="$VULPIX_REPO_RAW/$script"
     info "downloading $script"
-    local install_cmd="'$DOWNLOAD' '$script' | bash -s"
+    local install_cmd="$DOWNLOAD '$script' | bash -s"
   fi
-  readarray -t bin_dirs < <(eval "$install_cmd '$install_dir'")
+  readarray -t bin_dirs < <(
+    eval "$install_cmd '$install_dir'" || fatal "failed to get bootstrap script for '$1'"
+  )
   [[ $? -eq 0 || "${#bin_dirs[@]}" -eq 0 ]] || return 1
   debug "$1 bin dirs: ${bin_dirs[@]}"
 
@@ -71,7 +75,7 @@ clone_source() {
 }
 
 update_source() {
-  git -C "$1" pull origin main && git -C "$1" checkout main &> >(output)
+  git -C "$1" pull origin main && git -C "$1" checkout main
 }
 
 download_source() {

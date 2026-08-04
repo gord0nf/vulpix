@@ -65,22 +65,20 @@ the manual manager kinda special because it is (hopefully) garunteed to work on 
 therefore, it is used by the vulpix bootstrap scripts (`bootstrap.sh` and `bootstrap.ps1`) to
 install dependencies.
 
-packages that supported being bootstrap have `library/packages/$PACKAGE/manual.bootstrap.sh` (bash;
-platform agnostic) or `library/packages/$PACKAGE/manual.bootstrap.ps1` (windows only). instead of
-first sourcing `library/managers/manual.sh`, as is standard in production, the bootstrap script
-calls the `manual.bootstrap.{sh,ps1}` script directly.
+if bash is installed, any package can be bootstrapped by downloading and sourcing `utils.sh` and
+`library/managers/manual'/utils.sh`, then running `library/packages/${package}/manual.sh` (make sure
+the parent script computes MANUAL_ROOT correctly!). NOTE: `bootstrap.sh` only supports directory
+returns from manual.sh.
 
-properties of `manual.bootstrap.{sh,ps1}`:
+if on windows and bash isn't installed, a package can be bootstrapped by running
+`library/packages/$PACKAGE/manual.bootstrap.ps1` with WindowsPowershell .
 
-- self contained; not dependent on any shell session functions or environment variables
-- requires first argument to be `<install_dir>`. it's important that the parent bootstrap script
-  computes the correct manual install dir for the package.
-- should print logs like "$TYPE: ..." to stderr (e.g. 'FATAL: download stuff failed' or 'INFO: ...')
-- returns
-    - `manual.bootstrap.sh`: directories relative to install_dir containing binaries, each on
-      separate line
-    - `manual.bootstrap.ps1`: powershell array of directories relative to install_dir containing
-      binaries
+properties of `manual.bootstrap.ps1`:
+
+- requires first argument to be `<InstallDir>` (make sure the parent script computes MANUAL_ROOT
+  correctly!)
+- manaul logs like `Write-Host 'LOG_LEVEL: MESSAGE'`
+- return: directories (no files) relative to install_dir containing binaries, each on separate line
 
 > [!NOTE]
 >

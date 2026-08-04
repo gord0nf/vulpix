@@ -19,3 +19,95 @@ raw_logs_to_logs() {
     fi
   done
 }
+
+get_latest_github_tag() {
+  curl -L --fail -s "https://api.github.com/repos/$1/releases/latest" |
+    sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
+}
+
+transform_var() {
+  local var=$1 value=${!1}
+  local -n transform_map=$2
+  for original in "${!transform_map[@]}"; do
+    if [[ "$value" == "$original" ]]; then
+      export "$var"="${transform_map[$original]}"
+      return
+    fi
+  done
+}
+
+download() {
+  local url="$1" tmp=$(mktemp)
+  curl --ssl-revoke-best-effort --fail -L -o "$tmp" "$url" 2> >(output >&2)
+  if [[ $? -ne 0 ]]; then
+    err "download .../$(basename "$url") failed"
+    rm -f "$tmp"
+    return 1
+  fi
+  echo "$tmp"
+}
+
+# return 0 if success, 1 if download failed, 2 if extract failed
+download_and_extract() {
+  local url=$1 file=$(basename "$1")
+  local outdir=$2
+  local archive_type=$3 # "zip" | "tar"; optional, falls back to url filename
+
+  local tmp=$(download "$url") || return 1
+  trap "rm -f '$tmp'" RETURN
+
+  if [[ -z "$archive_type" ]]; then
+    case "$url" in
+      *.zip) archive_type=zip ;;
+      *.tar | *.tar.*) archive_type=tar ;;
+      *)
+        err 'could not determine archive type from url'
+        return 2
+        ;;
+    esac
+  fi
+
+  case "$archive_type" in
+    zip)
+      unzip -o -d "$outdir" "$tmp" | output >&2 || {
+        err "unzip '$file' failed"
+        return 2
+      }
+      ;;
+    tar)
+      tar -C "$outdir" xf "$tmp" | output >&2 || {
+        err "untar '$file' failed"
+        return 2
+      }
+      ;;
+  esac
+
+  # remove nested root dirs until the outdir is the root dir
+  while true; do
+    items=$(ls -A "$outdir")
+    rootdir="$outdir/${items[0]}"
+    if (("${#items[@]}" == 1)) && [[ -d "$rootdir" ]]; then
+      mv "$rootdir"/* "$rootdir"/.* "$outdir" &>/dev/null
+      rmdir "$rootdir"
+    else
+      break
+    fi
+  done
+}
+
+atomic_download_and_extract() {
+  local url=$1
+  local outdir=$2
+  shift && shift
+
+  mkdir -p "$tmpoutdir"
+  local tmpoutdir=$(atomic_change_start "$outdir")
+
+  download_and_extract "$url" "$tmpoutdir" "$@" || {
+    local exitstatus=$?
+    atomic_change_abort "$outdir"
+    rmdir "$outdir"
+    return $exitstatus
+  }
+  atomic_change_apply "$outdir"
+}
