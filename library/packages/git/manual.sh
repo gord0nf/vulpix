@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
 [[ -z "$INSTALL_DIR" ]] && fatal 'no install dir specified'
 
-_install_windows() {
+_windows() {
   local install_dir=$(convert_path_if_needed --windows "$INSTALL_DIR")
 
   # NOTE: let powershell snippet return line seperated bin paths to stdout
@@ -17,14 +17,9 @@ _install_windows() {
   " 2> >(raw_logs_to_logs)
 }
 
-case $OS in
-  windows)
-    bin_dirs=$(_install_windows) || fatal 'install failed'
-    echo "$bin_dirs" # return
-    ;;
-  linux)
-    info 'manual git install is not supported on linux (would have to build from source)'
-    fatal 'you must install git using your os package manager'
-    ;;
-  *) fatal 'invalid os' ;;
-esac
+if [[ $OS != 'windows' ]]; then
+  err 'manual git install is not supported on linux (would have to build from source)'
+  fatal 'you must install git using your os package manager'
+fi
+
+_windows || fatal 'install failed'
