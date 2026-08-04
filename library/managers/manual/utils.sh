@@ -32,6 +32,17 @@ get_latest_github_tag() {
   }
 }
 
+is_out_of_date() {
+  [[ $# -eq 2 ]]
+  local get_version="$1" # function
+  local latest_version="$2" current_version=
+
+  current_version=$("$get_version") || return 1
+
+  info "$current_version current vs $latest_version latest"
+  [[ "$current_version" == "$latest_version" ]] && echo false || echo true
+}
+
 transform_var() {
   [[ $# -eq 2 ]]
   local var=$1 value=${!1}
@@ -55,13 +66,12 @@ download() {
   fi
   echo "$tmp"
 }
-
 # return 0 if success, 1 if download failed, 2 if extract failed
 download_and_extract() {
   [[ $# -ge 2 ]]
   local url=$1 file=$(basename "$1")
   local outdir=$2
-  [[ $# -eq 3 ]] && local archive_type=$3 # "zip" | "tar"; optional, falls back to url filename
+  [[ $# -ge 3 ]] && local archive_type=$3 # "zip" | "tar"; optional, falls back to url filename
 
   local tmp=$(download "$url") || return 1
   trap "rm -f '$tmp'" RETURN
@@ -94,24 +104,25 @@ download_and_extract() {
 
   # remove nested root dirs until the outdir is the root dir
   while true; do
-    items=$(ls -A "$outdir")
-    rootdir="$outdir/${items[0]}"
-    if (("${#items[@]}" == 1)) && [[ -d "$rootdir" ]]; then
-      mv "$rootdir"/* "$rootdir"/.* "$outdir" &>/dev/null
-      rmdir "$rootdir"
-    else
-      break
+    items=("$outdir/"* "$outdir/".*)
+    if [[ "${#items[@]}" -gt 0 ]]; then
+      rootdir="${items[0]}"
+      if [[ "${#items[@]}" -eq 1 && -d "$rootdir" ]]; then
+        mv "$rootdir/"* "$rootdir/".* "$outdir"
+        rmdir "$rootdir"
+      else
+        break
+      fi
     fi
   done
 }
-
 atomic_download_and_extract() {
   [[ $# -ge 2 ]]
   local url=$1
   local outdir=$2
   shift && shift
 
-  local tmpoutdir=$(atomic_change_start "$outdir")
+  tmpoutdir=$(atomic_change_start "$outdir") || return 1
   mkdir -p "$tmpoutdir"
 
   download_and_extract "$url" "$tmpoutdir" "$@" || {
