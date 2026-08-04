@@ -238,15 +238,10 @@ debug "scope: ${scope_packages[@]}"
 
 source_script "$VULPIX/src/blueprint.sh"
 
-blueprint_packages=()
-yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" ||
-	fatal "failed to parse blueprint"
-debug "blueprint_packages: ${blueprint_packages[@]}"
-
 # look at scope_packages and prompt to add if not in blueprint
 floating_scope_packages=()
 for package in "${scope_packages[@]}"; do
-	array_has_element blueprint_packages "$package" || floating_scope_packages+=("$package")
+	array_has_element BLUEPRINT_PACKAGES "$package" || floating_scope_packages+=("$package")
 done
 if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 	debug "floating_scope_packages: ${floating_scope_packages[@]}"
@@ -257,14 +252,15 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 		fatal 'aborted... packages must be defined in blueprint'
 
 	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
+	BLUEPRINT_PACKAGES+=("${floating_scope_packages[@]}")
 fi
 
 # package management ------------------------------------------------------------------------------
 
-source_script "$VULPIX/src/tasks.sh"
-
 # test = exit before doing anything
 $is_test && exit
+
+source_script "$VULPIX/src/tasks.sh"
 
 package_management_for_manager() {
 	local manager=$1
@@ -362,7 +358,7 @@ if $clean || $install; then
 	managers=()
 
 	# sort packages by manager
-	for package in "${blueprint_packages[@]}"; do
+	for package in "${BLUEPRINT_PACKAGES[@]}"; do
 		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
 		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
 		array_name=${parsed_manager}_packages
@@ -412,7 +408,7 @@ if $config; then
 	if $config_packages; then
 		[[ "${#scope_packages[@]}" -gt 0 ]] &&
 			declare -n to_config_packages=scope_packages ||
-			declare -n to_config_packages=blueprint_packages
+			declare -n to_config_packages=BLUEPRINT_PACKAGES
 		for package in "${to_config_packages[@]}"; do
 			parse_package "$package"
 			to_config+=("$parsed_package")

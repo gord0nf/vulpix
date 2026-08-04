@@ -24,3 +24,7 @@ load_settings_from_blueprint() {
 
 debug 'loading blueprint settings'
 load_settings_from_blueprint
+
+BLUEPRINT_PACKAGES=()
+yq_get_array BLUEPRINT_PACKAGES '.packages[]' "$BLUEPRINT" || fatal "failed to parse blueprint"
+debug "BLUEPRINT_PACKAGES: ${BLUEPRINT_PACKAGES[@]}"
