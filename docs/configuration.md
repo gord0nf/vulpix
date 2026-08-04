@@ -18,13 +18,21 @@ example. the blueprint is located at `$VULPIX_CONFIG/blueprint.yaml`.
 ```yaml
 required: [packages]
 properties:
+    # blueprint meta
+    extends:
+        description:
+            paths to other yaml blueprints to merge the current ontop of (arrays are concated)
+        type: array
+        items:
+            type: string
+
+    # main blueprint stuff
     packages:
         description: list of packages for package managers to align to
         type: array
         items:
             description: package like package_name@manager
             type: string
-
     config:
         type: object
         description: custom, user-defined configuration for use by config-scripts

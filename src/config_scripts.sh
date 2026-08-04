@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-[[ -v BLUEPRINT ]] || fatal 'config_scripts.sh requires BLUEPRINT'
+[[ -v FUNCTIONAL_BLUEPRINT ]] || fatal 'config_scripts.sh requires FUNCTIONAL_BLUEPRINT'
 
 CONFIG_SCRIPTS="$VULPIX_CONFIG/config"
 
@@ -74,11 +74,11 @@ blueprint_query() {
     local -n var=$2 ||
     local var=
 
-  if [[ "$(yq_safe -r "$query | type" "$BLUEPRINT")" == 'array' ]]; then
+  if [[ "$(yq_safe -r "$query | type" "$FUNCTIONAL_BLUEPRINT")" == 'array' ]]; then
     if _is_simple_query "$query" && [[ "$query" != *"[]" ]]; then
       query+='[]'
     fi
-    yq_get_array var "$query" "$BLUEPRINT"
+    yq_get_array var "$query" "$FUNCTIONAL_BLUEPRINT"
     [[ -R var ]] || echo "${var[@]}"
   else
     [[ -R var ]] || echo "$var"

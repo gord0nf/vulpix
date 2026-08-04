@@ -21,14 +21,6 @@ is_manager() {
   [[ -f "$(_get_manager_script "$1")" ]]
 }
 
-# parse package string into $parsed_package and $parsed_manager
-parse_package() {
-  [[ "$1" =~ ^(.+)@(.+)$ ]] && {
-    parsed_package=${BASH_REMATCH[1]}
-    parsed_manager=${BASH_REMATCH[2]}
-  }
-}
-
 # sources manager script, with checks
 load_manager() {
   local script=$(_get_manager_script "$1")

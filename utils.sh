@@ -223,6 +223,13 @@ yq_has_key() {
   esac
 }
 
+yq_merge_yamls() {
+  case $(_yq_implementation) in
+    go) yq ea '. as $item ireduce ({}; . *+ $item )' "$@" ;;
+    python) yq -y 'input as $in | . *+ $in' "$@" ;; # TODO: need to test (also does it support - syntax?)
+  esac
+}
+
 # git bash on windows is iffy about detecting junctions as existing using just [ -e ... ]
 item_exists() {
   [[ -e "$1" ]] || ls "$1" &>/dev/null
@@ -272,13 +279,21 @@ normalize_path() {
   while [[ $path =~ ([^/][^/]*/\.\\./) ]]; do
     path="${path/${BASH_REMATCH[0]}/}"
   done
-  echo "$path"
+  echo "${path/#~/$HOME}"
 }
 
 # add color to stdout
 colorize() {
   local in=$(cat)
   printf "$1%s$RESET\n" "$in"
+}
+
+# parse package string like package_name@manager into $parsed_package and $parsed_manager
+parse_package() {
+  [[ "$1" =~ ^(.+)@(.+)$ ]] && {
+    parsed_package=${BASH_REMATCH[1]}
+    parsed_manager=${BASH_REMATCH[2]}
+  }
 }
 
 # environmental variables -------------------------------------------------------------------------

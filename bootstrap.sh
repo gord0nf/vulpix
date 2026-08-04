@@ -116,8 +116,7 @@ fi
 info "installing at: $VULPIX_INSTALL"
 verify 'is this a good place to install?' || {
   VULPIX_INSTALL=$(prompt 'enter install dir: ')
-  VULPIX_INSTALL=$(convert_path_if_needed --unix "$VULPIX_INSTALL")
-  export VULPIX_INSTALL="${VULPIX_INSTALL/#~/$HOME}"
+  export VULPIX_INSTALL=$(normalize_path "$(convert_path_if_needed --unix "$VULPIX_INSTALL")")
   debug "install dir: $VULPIX_INSTALL"
 }
 echo # style
