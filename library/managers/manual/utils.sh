@@ -25,6 +25,16 @@ get_latest_github_tag() {
     sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
 }
 
+is_out_of_date() {
+  local get_version="$1" # function
+  local latest_version="$2" current_version=
+
+  current_version=$("$get_version") || return 1
+
+  info "$current_version current vs $latest_version latest"
+  [[ "$current_version" == "$latest_version" ]] && echo false || echo true
+}
+
 transform_var() {
   local var=$1 value=${!1}
   local -n transform_map=$2
@@ -46,7 +56,6 @@ download() {
   fi
   echo "$tmp"
 }
-
 # return 0 if success, 1 if download failed, 2 if extract failed
 download_and_extract() {
   local url=$1 file=$(basename "$1")
@@ -94,7 +103,6 @@ download_and_extract() {
     fi
   done
 }
-
 atomic_download_and_extract() {
   local url=$1
   local outdir=$2
