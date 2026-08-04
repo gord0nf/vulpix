@@ -81,11 +81,11 @@ _deactivate_package() {
     [[ -z "$bin_link" ]] && continue
     bin_link="$tmpbin/$bin_link"
     item_exists "$bin_link" || {
-      warn "manager(manual): expected binary to be linked at '$bin_link'"
+      warn "manual: expected binary to be linked at '$bin_link'"
       continue
     }
     rm "$bin_link" || {
-      err "manager(manual): couldn't remove link at '$bin_link'"
+      err "manual: couldn't remove link at '$bin_link'"
       atomic_change_abort "$BIN"
       return 1
     }
@@ -173,7 +173,7 @@ _reinstall_package() {
 can_use_manager() {
   for dep in "${DEPENDENCIES[@]}"; do
     command_exists "$dep" || {
-      err "manager(manual): requires $dep, but not found"
+      err "requires $dep, but not found"
       return 1
     }
   done
@@ -194,10 +194,9 @@ presetup() {
   if [[ -f "$STATUS" ]]; then
     info "verifying status.yaml"
     local packages=()
-    yq_get_array packages '. | select(.) | keys[]' "$STATUS" ||
-      fatal "manager(manual): invalid yaml at $STATUS"
+    yq_get_array packages '. | select(.) | keys[]' "$STATUS" || fatal "invalid yaml at $STATUS"
     for pkg in "${packages[@]}"; do
-      package_is_supported "$pkg" || fatal "manager(manual): unsupported package '$pkg' at $STATUS"
+      package_is_supported "$pkg" || fatal "unsupported package '$pkg' at $STATUS"
     done
   else
     touch "$STATUS"
@@ -213,7 +212,7 @@ postsetup() {
   yq_get_array garbage_packages \
     '. | with_entries(select(.value.last_active <= "'$cutoff_date'")) | keys[]' \
     "$STATUS"
-  [[ $? -eq 0 ]] || fatal "manager(manual): could not parse status for garbage"
+  [[ $? -eq 0 ]] || fatal "could not parse status for garbage"
 
   for package in "${garbage_packages[@]}"; do
     info "'$package' for garbage collection"
@@ -232,10 +231,7 @@ get_installed() {
 install_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
-    package_is_supported "$package" || {
-      warn "manager(manual): package not supported '$package'"
-      continue
-    }
+    package_is_supported "$package" || fatal "manager: not supported '$package', SHOULD NOT GET HERE"
     run_background_task "install $package@manual" _install_package "$package" ||
       warn "manager(manual): package install failed for '$package'"
   done
@@ -244,10 +240,7 @@ install_packages() {
 uninstall_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
-    package_is_supported "$package" || {
-      warn "manager(manual): package not supported '$package'"
-      continue
-    }
+    package_is_supported "$package" || fatal "manager: not supported '$package', SHOULD NOT GET HERE"
     run_background_task "uninstall $package@manual" _uninstall_package "$package" ||
       warn "manager(manual): package uninstall failed for '$package'"
   done
@@ -256,10 +249,7 @@ uninstall_packages() {
 update_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
-    package_is_supported "$package" || {
-      warn "manager(manual): package not supported '$package'"
-      continue
-    }
+    package_is_supported "$package" || fatal "manager: package not supported '$package'. SHOULD NOT GET HERE"
     run_background_task "update $package@manual" _update_package "$package" ||
       warn "manager(manual): package update failed for '$package'"
   done
@@ -268,10 +258,7 @@ update_packages() {
 reinstall_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
-    package_is_supported "$package" || {
-      warn "manager(manual): package not supported '$package'"
-      continue
-    }
+    package_is_supported "$package" || fatal "manager: package not supported '$package'. SHOULD NOT GET HERE"
     run_background_task "reinstall $package@manual" _reinstall_package "$package" ||
       warn "manager(manual): package reinstall failed for '$package'"
   done

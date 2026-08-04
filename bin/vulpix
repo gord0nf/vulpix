@@ -180,7 +180,7 @@ install=false
 reinstall_instead_of_update=false
 config=false
 config_packages=false
-scope_packages=() # packages like name@manager, if empty, there's no scope (so all packages)
+SCOPE_PACKAGES=() # packages like name@manager, if empty, there's no scope (so all packages)
 
 if [[ -z "$subcommand" ]]; then
 	subcommand='clean install config' # so it falls through in case statement below
@@ -192,8 +192,7 @@ case "$subcommand" in
 *install*)
 	install=true
 	for arg in "${subcommand_args[@]}"; do
-		parse_package "$arg" || fatal "invalid package syntax at '$arg'"
-		array_has_element scope_packages "$arg" || scope_packages+=("$arg")
+		array_has_element SCOPE_PACKAGES "$arg" || SCOPE_PACKAGES+=("$arg")
 	done
 	;;&
 *config*)
@@ -202,12 +201,11 @@ case "$subcommand" in
 		if [[ "$subcommand" == 'config' ]]; then
 			config_packages=true # if at least one package (or all) is specified, configure packges
 			if [[ "$arg" == 'all' ]]; then
-				scope_packages=() # no scope
+				SCOPE_PACKAGES=() # no scope
 				break
 			fi
 		fi
-		parse_package "$arg" || fatal "invalid package syntax at '$arg'"
-		array_has_element scope_packages "$arg" || scope_packages+=("$arg")
+		array_has_element SCOPE_PACKAGES "$arg" || SCOPE_PACKAGES+=("$arg")
 	done
 	;;&
 *reinstall*)
@@ -232,15 +230,65 @@ debug "install=$install"
 debug "reinstall=$reinstall_instead_of_update"
 debug "config=$config"
 debug "config_packages=$config_packages"
-debug "scope: ${scope_packages[@]}"
+debug "scope: ${SCOPE_PACKAGES[@]}"
 
-# load blueprint ----------------------------------------------------------------------------------
+# load blueprint and parse packages ---------------------------------------------------------------
 
 source_script "$VULPIX/src/blueprint.sh"
+source_script "$VULPIX/src/library.sh"
+source_script "$VULPIX/src/tasks.sh"
+
+managers=()
+
+# check SCOPE_PACKAGES and sort by manager
+manager_scope_packages() { echo ${1}_scope_packages; } # returns name of manager array (for namerefs)
+for package in "${SCOPE_PACKAGES[@]}"; do
+	parse_package "$package" || fatal "invalid package syntax at '$package' in scope"
+	is_manager "$parsed_manager" || fatal "invalid manager '$parsed_manager' at '$package' in scope"
+
+	# create and append to manager packages array
+	array_name=$(manager_scope_packages "$parsed_manager")
+	array_has_element managers "$parsed_manager" || managers+=("$parsed_manager")
+	[[ -v "$array_name" ]] || declare -a "$array_name"
+	declare -n pkgs="$array_name"
+	pkgs+=("$parsed_package")
+done
+
+# check BLUEPRINT_PACKAGES and sort by manager
+manager_blueprint_packages() { echo ${1}_blueprint_packages; } # returns name of manager array (for namerefs)
+for package in "${BLUEPRINT_PACKAGES[@]}"; do
+	parse_package "$package" || fatal "invalid package syntax at '$package' in blueprint"
+	is_manager "$parsed_manager" || fatal "invalid manager '$parsed_manager' at '$package' in blueprint"
+
+	# create and append to manager packages array
+	array_name=$(manager_blueprint_packages "$parsed_manager")
+	array_has_element managers "$parsed_manager" || managers+=("$parsed_manager")
+	[[ -v "$array_name" ]] || declare -a "$array_name"
+	declare -n pkgs="$array_name"
+	pkgs+=("$parsed_package")
+done
+
+# for each manager, check 1) can use manager and 2) whether manager supports packages (both blueprint and scope)
+for manager in "${managers[@]}"; do
+	declare -n scope_pkgs=$(manager_scope_packages "$manager")
+	declare -n bp_pkgs=$(manager_blueprint_packages "$manager")
+	pkgs=("${scope_pkgs[@]}" "${bp_pkgs[@]}")
+
+	( # run in subshell to not clutter env
+		load_manager "$manager"
+
+		run_foreground_task "check $manager availability" can_use_manager ||
+			fatal "cannot use '$manager' manager on your system/user"
+
+		for package in "${pkgs[@]}"; do
+			package_is_supported "$package" || fatal "$manager manager does not support '$package'"
+		done
+	) || fatal 'unsupported manager/package(s) in scope or blueprint'
+done
 
 # look at scope_packages and prompt to add if not in blueprint
 floating_scope_packages=()
-for package in "${scope_packages[@]}"; do
+for package in "${SCOPE_PACKAGES[@]}"; do
 	array_has_element BLUEPRINT_PACKAGES "$package" || floating_scope_packages+=("$package")
 done
 if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
@@ -252,7 +300,6 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 		fatal 'aborted... packages must be defined in blueprint'
 
 	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
-	BLUEPRINT_PACKAGES+=("${floating_scope_packages[@]}")
 fi
 
 # package management ------------------------------------------------------------------------------
@@ -260,19 +307,14 @@ fi
 # test = exit before doing anything
 $is_test && exit
 
-source_script "$VULPIX/src/tasks.sh"
-
 package_management_for_manager() {
 	local manager=$1
-	local -n manager_blueprint_packages=$2
-	local -n manager_scope_packages=$3
-	debug "blueprint packages for $manager: ${manager_blueprint_packages[@]}"
-	debug "scope packages for $manager: ${manager_scope_packages[@]}"
+	local -n blueprint_packages=$2
+	local -n scope_packages=$3
+	debug "blueprint packages for $manager: ${blueprint_packages[@]}"
+	debug "scope packages for $manager: ${scope_packages[@]}"
 
 	load_manager "$manager"
-
-	run_foreground_task "check $manager availability" can_use_manager ||
-		fatal 'cannot use manager on your system'
 
 	if function_exists presetup; then
 		info "running $manager presetup"
@@ -287,11 +329,11 @@ package_management_for_manager() {
 	# diff between blueprint packages and installed packages
 	to_install=() to_update=() to_uninstall=()
 	for package in "${installed_packages[@]}"; do
-		array_has_element manager_blueprint_packages "$package" &&
+		array_has_element blueprint_packages "$package" &&
 			to_update+=("$package") ||
 			to_uninstall+=("$package")
 	done
-	for package in "${manager_blueprint_packages[@]}"; do
+	for package in "${blueprint_packages[@]}"; do
 		array_has_element installed_packages "$package" ||
 			to_install+=("$package")
 	done
@@ -301,10 +343,10 @@ package_management_for_manager() {
 	debug "to_uninstall: ${to_uninstall[@]}"
 
 	# apply scope
-	if [[ "${#manager_scope_packages[@]}" -gt 0 ]]; then
+	if [[ "${#scope_packages[@]}" -gt 0 ]]; then
 		debug 'applying scope'
 		to_install_tmp=() to_update_tmp=()
-		for package in "${manager_scope_packages[@]}"; do
+		for package in "${scope_packages[@]}"; do
 			if array_has_element to_install "$package"; then
 				to_install_tmp+=("$package")
 			elif array_has_element to_update "$package"; then
@@ -356,38 +398,14 @@ package_management_for_manager() {
 
 if $clean || $install; then
 	debug 'manager stuff start'
-	source_script "$VULPIX/src/library.sh"
-
-	managers=()
-
-	# sort packages by manager
-	for package in "${BLUEPRINT_PACKAGES[@]}"; do
-		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
-		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
-		array_name=${parsed_manager}_packages
-		array_has_element managers "$parsed_manager" || {
-			managers+=("$parsed_manager")
-			declare -a "$array_name"
-		}
-		declare -n manager_packages="$array_name"
-		manager_packages+=("$parsed_package")
-	done
-
-	# scope_packages by manager
-	for package in "${scope_packages[@]}"; do
-		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
-		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
-		array_name=${parsed_manager}_scope_packages
-		[[ -v "$array_name" ]] || declare -a "$array_name"
-		declare -n manager_scope_packages="$array_name"
-		manager_scope_packages+=("$parsed_package")
-	done
 
 	pids=()
 	for manager in "${managers[@]}"; do
 		# start in a subshell so manager script doesn't clutter env. start in background so multiple
 		# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
-		package_management_for_manager "$manager" ${manager}_packages ${manager}_scope_packages &
+		package_management_for_manager "$manager" \
+			$(manager_blueprint_packages "$manager") \
+			$(manager_scope_packages "$manager") &
 		pids+=($!)
 	done
 
@@ -409,8 +427,8 @@ if $config; then
 	to_config=('global')
 
 	if $config_packages; then
-		[[ "${#scope_packages[@]}" -gt 0 ]] &&
-			declare -n to_config_packages=scope_packages ||
+		[[ "${#SCOPE_PACKAGES[@]}" -gt 0 ]] &&
+			declare -n to_config_packages=SCOPE_PACKAGES ||
 			declare -n to_config_packages=BLUEPRINT_PACKAGES
 		for package in "${to_config_packages[@]}"; do
 			parse_package "$package"

@@ -66,7 +66,3 @@ _load_settings_from_blueprint
 BLUEPRINT_PACKAGES=()
 yq_get_array BLUEPRINT_PACKAGES '.packages[]' "$FUNCTIONAL_BLUEPRINT" || fatal "failed to parse blueprint"
 debug "BLUEPRINT_PACKAGES: ${BLUEPRINT_PACKAGES[@]}"
-
-for package in "${BLUEPRINT_PACKAGES[@]}"; do
-  parse_package "$package" || fatal "invalid package syntax at '$package' in blueprint"
-done
