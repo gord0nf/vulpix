@@ -26,12 +26,12 @@ _configure_package() {
       *.sh)
         info "$rscript"
         # start in subshell for its very own env
-        (source "$script") || warn "config: $package: failed $rscript"
+        (source "$script" | output) || warn "$package: failed $rscript"
         ;;
       *.ps1)
         if [[ $OS == 'windows' ]]; then
           info "$rscript"
-          powershell "$script" || warn "config: $package: failed $rscript"
+          (powershell "$script" | output) || warn "$package: failed $rscript"
         fi
         ;;
     esac
@@ -46,12 +46,13 @@ configure_packages() {
   # source shared utils
   for script in "$CONFIG_SCRIPTS/shared/"*.sh; do
     local rscript=$(realpath --relative-to "$CONFIG_SCRIPTS" "$script")
-    info "config: sourcing '$rscript'"
+    info "sourcing '$rscript'"
     source_script "$script"
   done
 
   for package in "${packages[@]}"; do
-    run_task "${package}_config" _configure_package "$package"
+    # TODO: asyncronous config scripts by numbered 00-script.sh format
+    run_foreground_task "config $package" _configure_package "$package"
   done
 
   shopt -u nullglob

@@ -277,9 +277,8 @@ normalize_path() {
 
 # add color to stdout
 colorize() {
-  printf "${1}"
-  cat
-  printf "$RESET"
+  local in=$(cat)
+  printf "$1%s$RESET\n" "$in"
 }
 
 # environmental variables -------------------------------------------------------------------------
@@ -290,7 +289,7 @@ get_arch
 
 # check for windows env vars
 if [[ $OS == windows ]]; then
-  for var in ProgramFiles ProgramData APPDATA LOCALAPPDATA; do
+  for var in ProgramFiles ProgramData APPDATA LOCALAPPDATA TMP; do
     [[ -v "$var" ]] || fatal "windows environmental var is required: $var"
   done
 fi
@@ -346,6 +345,12 @@ else
     VULPIX_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vulpix"
 fi
 export VULPIX_CONFIG
+
+# VUPLIX_TMP
+[[ $OS == windows ]] &&
+  VULPIX_TMP="$TMP/vulpix" ||
+  VULPIX_TMP="/tmp/vulpix"
+export VULPIX_TMP
 
 # ansi color codes
 RESET="\e[0m"

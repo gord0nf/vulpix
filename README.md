@@ -7,11 +7,14 @@ desired state of the machine and/or user.
 
 if magic isn't specific enough for you:
 
-- installs/removes packages to align with the blueprint.
+- installs/removes packages to align with the blueprint, optionally asyncronously (which makes it
+  pretty fast!)
 
     - the goal is a functional, config-driven, atomic wrapper around package manager(s)
     - since it's a wrapper around other managers, it's not perfect (for example, the apt
       implementation isn't completely atomic)
+    - implements it own "manual" manager, which works really well if you don't want to rely on a
+      fancy package manager that you don't know what's actually happening behind the scenes...
 
 > [!IMPORTANT]
 >

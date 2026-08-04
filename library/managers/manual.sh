@@ -187,10 +187,12 @@ package_is_supported() {
 
 # create stuff && verify status.yaml
 presetup() {
+  info 'making dirs'
   mkdir -p "$MANUAL_ROOT"
   mkdir -p "$BIN"
 
   if [[ -f "$STATUS" ]]; then
+    info "verifying status.yaml"
     local packages=()
     yq_get_array packages '. | select(.) | keys[]' "$STATUS" ||
       fatal "manager(manual): invalid yaml at $STATUS"
@@ -204,6 +206,8 @@ presetup() {
 
 # garbage collection
 postsetup() {
+  info 'checking for garbage packages'
+
   local cutoff_date=$(date -d "$N_GRACE_DAYS days ago" +"%Y-%m-%d")
   local garbage_packages=()
   yq_get_array garbage_packages \
@@ -212,7 +216,7 @@ postsetup() {
   [[ $? -eq 0 ]] || fatal "manager(manual): could not parse status for garbage"
 
   for package in "${garbage_packages[@]}"; do
-    info "manager(manual): '$package' for garbage collection"
+    info "'$package' for garbage collection"
     _destory_package "$package"
   done
 }
@@ -232,7 +236,7 @@ install_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    run_in_log_context "${package}_install" _install_package "$package" ||
+    run_background_task "install $package@manual" _install_package "$package" ||
       warn "manager(manual): package install failed for '$package'"
   done
 }
@@ -244,7 +248,7 @@ uninstall_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    run_in_log_context "${package}_uninstall" _uninstall_package "$package" ||
+    run_background_task "uninstall $package@manual" _uninstall_package "$package" ||
       warn "manager(manual): package uninstall failed for '$package'"
   done
 }
@@ -256,8 +260,7 @@ update_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-
-    run_in_log_context "${package}_update" _update_package "$package" ||
+    run_background_task "update $package@manual" _update_package "$package" ||
       warn "manager(manual): package update failed for '$package'"
   done
 }
@@ -269,7 +272,7 @@ reinstall_packages() {
       warn "manager(manual): package not supported '$package'"
       continue
     }
-    run_in_log_context "${package}_reinstall" _reinstall_package "$package" ||
+    run_background_task "reinstall $package@manual" _reinstall_package "$package" ||
       warn "manager(manual): package reinstall failed for '$package'"
   done
 }

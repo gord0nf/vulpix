@@ -13,7 +13,7 @@ raw_logs_to_logs() {
     [[ "$log_type" == 'error' ]] && log_type='err'
     if function_exists "$log_type"; then
       log=${line#*:}
-      "$log_type" "$(trimstring "$log")"
+      "$log_type" "$(trimstring "$log")" </dev/null
     else
       output "$line"
     fi

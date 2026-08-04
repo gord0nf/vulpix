@@ -36,6 +36,7 @@ source_script "$VULPIX/src/logging.sh"
 debug "using vulpix at: $VULPIX"
 
 # script dependencies
+source_script "$VULPIX/src/tasks.sh"
 source_script "$VULPIX/src/library.sh"
 source_script "$VULPIX/src/dotfiles.sh"
 source_script "$VULPIX/src/config_scripts.sh"
@@ -266,16 +267,106 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
 fi
 
-# install packages --------------------------------------------------------------------------------
-
 # test = exit before doing anything
 $is_test && exit
+
+# package management ------------------------------------------------------------------------------
+
+package_management_for_manager() {
+	local manager=$1
+	local -n manager_blueprint_packages=$2
+	local -n manager_scope_packages=$3
+	debug "blueprint packages for $manager: ${manager_blueprint_packages[@]}"
+	debug "scope packages for $manager: ${manager_scope_packages[@]}"
+
+	load_manager "$manager"
+
+	if function_exists presetup; then
+		info "running $manager presetup"
+		# run in foreground because it should be completed before running any manager scripts
+		run_foreground_task "presetup $manager" presetup || fatal "$manager presetup failed"
+	fi
+
+	installed_packages=()
+	get_installed installed_packages
+	debug "installed_packages: ${installed_packages[@]}"
+
+	# diff between blueprint packages and installed packages
+	to_install=() to_update=() to_uninstall=()
+	for package in "${installed_packages[@]}"; do
+		array_has_element manager_blueprint_packages "$package" &&
+			to_update+=("$package") ||
+			to_uninstall+=("$package")
+	done
+	for package in "${manager_blueprint_packages[@]}"; do
+		array_has_element installed_packages "$package" ||
+			to_install+=("$package")
+	done
+
+	debug "to_install: ${to_install[@]}"
+	debug "to_update: ${to_update[@]}"
+	debug "to_uninstall: ${to_uninstall[@]}"
+
+	# apply scope
+	if [[ "${#manager_scope_packages[@]}" -gt 0 ]]; then
+		debug 'applying scope'
+		to_install_tmp=() to_update_tmp=()
+		for package in "${manager_scope_packages[@]}"; do
+			if array_has_element to_install "$package"; then
+				to_install_tmp+=("$package")
+			elif array_has_element to_update "$package"; then
+				to_update_tmp+=("$package")
+			else
+				fatal 'scope package not in to_install or to_update (this should not happen...)'
+			fi
+		done
+		to_install=("${to_install_tmp[@]}")
+		to_update=("${to_update_tmp[@]}")
+	fi
+
+	if $clean; then
+		if [[ "${#to_uninstall[@]}" -gt 0 ]]; then
+			info 'cleaning packages'
+			uninstall_packages to_uninstall
+		else
+			output 'no packages to clean'
+		fi
+	fi
+
+	if $install; then
+		if [[ "${#to_install[@]}" -gt 0 ]]; then
+			info 'installing packages'
+			install_packages to_install
+		else
+			output 'no packages to install'
+		fi
+
+		$reinstall_instead_of_update && update_kw=reinstall || {
+			update_kw=update
+			update_verb=updat
+		}
+		if [[ "${#to_update[@]}" -gt 0 ]]; then
+			info "${update_verb:-$update_kw}ing packages"
+			${update_kw}_packages to_update
+		else
+			output "no packages to $update_kw"
+		fi
+	fi
+
+	await_tasks # wait for any uninstall/install/update/reinstall tasks spawned by any managers to finish
+
+	if function_exists postsetup; then
+		info "running $manager postsetup"
+		run_foreground_task "postsetup $manager" postsetup || fatal "$manager postsetup failed"
+	fi
+}
 
 if $clean || $install; then
 	debug 'manager stuff start'
 
-	# sort packages and scope_packages by manager
 	managers=()
+
+	# sort packages by manager
 	for package in "${blueprint_packages[@]}"; do
 		parse_package "$package" || fatal "invalid package syntax (SHOULD NOT GET HERE)"
 		is_manager "$parsed_manager" || fatal "invalid package manager (SHOULD NOT GET HERE)"
@@ -298,96 +389,18 @@ if $clean || $install; then
 		manager_scope_packages+=("$parsed_package")
 	done
 
+	pids=()
 	for manager in "${managers[@]}"; do
-		declare -n manager_blueprint_packages=${manager}_packages
-		declare -n manager_scope_packages=${manager}_scope_packages
-		debug "blueprint packages for $manager: ${manager_blueprint_packages[@]}"
-		debug "scope packages for $manager: ${manager_scope_packages[@]}"
+		# start in a subshell so manager script doesn't clutter env. start in background so multiple
+		# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
+		package_management_for_manager "$manager" ${manager}_packages ${manager}_scope_packages &
+		pids+=($!)
+	done
 
-		# start in a subshell so manager script doesn't clutter env
-		(
-			load_manager "$manager"
-
-			if function_exists presetup; then
-				info "running $manager presetup"
-				run_task "${manager}_presetup" presetup ||
-					fatal "$manager presetup failed"
-				success "$manager presetup succeeded"
-			fi
-
-			installed_packages=()
-			get_installed installed_packages
-			debug "installed_packages: ${installed_packages[@]}"
-
-			# diff between blueprint packages and installed packages
-			to_install=() to_update=() to_uninstall=()
-			for package in "${installed_packages[@]}"; do
-				array_has_element manager_blueprint_packages "$package" &&
-					to_update+=("$package") ||
-					to_uninstall+=("$package")
-			done
-			for package in "${manager_blueprint_packages[@]}"; do
-				array_has_element installed_packages "$package" ||
-					to_install+=("$package")
-			done
-
-			debug "to_install: ${to_install[@]}"
-			debug "to_update: ${to_update[@]}"
-			debug "to_uninstall: ${to_uninstall[@]}"
-
-			# apply scope
-			if [[ "${#manager_scope_packages[@]}" -gt 0 ]]; then
-				debug 'applying scope'
-				to_install_tmp=() to_update_tmp=()
-				for package in "${manager_scope_packages[@]}"; do
-					if array_has_element to_install "$package"; then
-						to_install_tmp+=("$package")
-					elif array_has_element to_update "$package"; then
-						to_update_tmp+=("$package")
-					else
-						fatal 'scope package not in to_install or to_update (this should not happen...)'
-					fi
-				done
-				to_install=("${to_install_tmp[@]}")
-				to_update=("${to_update_tmp[@]}")
-			fi
-
-			if $clean; then
-				if [[ "${#to_uninstall[@]}" -gt 0 ]]; then
-					info 'cleaning packages'
-					uninstall_packages to_uninstall
-				else
-					output 'no packages to clean'
-				fi
-			fi
-
-			if $install; then
-				if [[ "${#to_install[@]}" -gt 0 ]]; then
-					info 'installing packages'
-					install_packages to_install
-				else
-					output 'no packages to install'
-				fi
-
-				$reinstall_instead_of_update && update_kw=reinstall || {
-					update_kw=update
-					update_verb=updat
-				}
-				if [[ "${#to_update[@]}" -gt 0 ]]; then
-					info "${update_verb:-$update_kw}ing packages"
-					${update_kw}_packages to_update
-				else
-					output "no packages to $update_kw"
-				fi
-			fi
-
-			if function_exists postsetup; then
-				info "running $manager postsetup"
-				run_in_log_context "${manager}_postsetup" postsetup ||
-					fatal "$manager postsetup failed"
-				success "$manager postsetup succeeded"
-			fi
-		)
+	# wait for all package_management_for_manager background processes to finish
+	# NOTE: any tasks spawned by manager should be completed by the time package_management_for_manager ends via await_tasks
+	for pid in "${pids[@]}"; do
+		wait "$pid"
 	done
 
 	debug 'manager stuff end'
