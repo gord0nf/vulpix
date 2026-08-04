@@ -21,6 +21,9 @@ _expand_blueprint() {
 
   local extended_blueprints=()
   yq_get_array extended_blueprints '.extends[]' "$bp" || fatal "couldn't parse yaml at '$bp'"
+  profile=$(yq_safe -r '.profile' "$bp")
+  [[ -n "$profile" && "$profile" != 'null' ]] &&
+    extended_blueprints+=("$VULPIX_CONFIG/profiles/$profile.yaml")
 
   local accumulated_yaml=$(mktemp)
   echo '{}' >"$accumulated_yaml"

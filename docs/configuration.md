@@ -25,6 +25,9 @@ properties:
         type: array
         items:
             type: string
+    profile:
+        description: 'alias for extends: $VULPIX_CONFIG/profiles/${value}.yaml'
+        type: string
 
     # main blueprint stuff
     packages:
