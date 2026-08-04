@@ -271,6 +271,9 @@ package_management_for_manager() {
 
 	load_manager "$manager"
 
+	run_foreground_task "check $manager availability" can_use_manager ||
+		fatal 'cannot use manager on your system'
+
 	if function_exists presetup; then
 		info "running $manager presetup"
 		# run in foreground because it should be completed before running any manager scripts
