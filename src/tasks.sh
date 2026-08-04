@@ -3,9 +3,13 @@
 # a task is a process that has seperate logging and is run in a forked bash subprocess (optionally
 # in parallel).
 
+[[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
+[[ -v MAX_PROCESSES ]] || fatal 'logging.sh requires MAX_PROCESSES'
+[[ "$MAX_PROCESSES" =~ ^[0-9]+$ ]] || fatal 'invalid MAX_PROCESSES'
+[[ "$MAX_PROCESSES" -ge 1 ]] || fatal 'MAX_PROCESSES must at least be 1'
+
 TASK_LOCKFILE="$VULPIX_TMP/tasks.lock"
 TASK_DIR="$VULPIX_TMP/tasks"
-MAX_PROCESSES=${MAX_PROCESSES:-5}
 
 # clean tasks on init
 rm -fr "$TASK_DIR"

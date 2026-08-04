@@ -16,21 +16,31 @@ example. the blueprint is located at `$VULPIX_CONFIG/blueprint.yaml`.
 ### yaml schema
 
 ```yaml
+required: [packages]
 properties:
     packages:
+        description: list of packages for package managers to align to
         type: array
         items:
+            description: package like package_name@manager
             type: string
+
     config:
         type: object
+        description: custom, user-defined configuration for use by config-scripts
         properties:
             global: {} # user defined value/properties
         patternProperties:
             '.*': # package name
                 {} # user defined value/properties
-    dotfiles: # path to dotfiles directory
+
+    # vulpix settings
+    dotfiles:
+        description: path to dotfiles directory
         type: string
-required: [packages]
+    max_bg_processes:
+        description: number to cap async background processes at (default=5)
+        type: number
 ```
 
 ## config scripts

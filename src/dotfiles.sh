@@ -1,5 +1,8 @@
 #!/usr/bin/env
 
+[[ -v DOTFILES ]] || fatal 'dotfiles.sh requires DOTFILES'
+[[ -d "$DOTFILES" ]] || fatal "no directory at '$DOTFILES'"
+
 # FONT_INSTALL; only used for linux
 is_root &&
   FONT_INSTALL='/usr/share/fonts' ||
@@ -43,19 +46,18 @@ _print_pretty_link() {
 }
 
 setup_dotfiles() {
-  local dotfiles=$1
-  [[ -d "$dotfiles" ]] || return 1
-  [[ "$dotfiles" == *"/" ]] && dotfiles="${dotfiles%?}"
+  [[ -d "$DOTFILES" ]] || return 1
+  [[ "$DOTFILES" == *"/" ]] && DOTFILES="${DOTFILES%?}"
   shopt -s nullglob globstar
 
-  ignore_file="$dotfiles/.vulpixignore"
-  font_dir="$dotfiles/fonts"
+  ignore_file="$DOTFILES/.vulpixignore"
+  font_dir="$DOTFILES/fonts"
 
   # get ignored paths
   ignored_paths=("$ignore_file" "$font_dir")
   if [[ -f "$ignore_file" ]]; then
     while IFS= read -r ignored; do
-      ignored_paths+=("$(normalize_path "$dotfiles/$ignored")")
+      ignored_paths+=("$(normalize_path "$DOTFILES/$ignored")")
     done <"$ignore_file"
   fi
   debug "ignoring: ${ignored_paths[@]}"
@@ -63,7 +65,7 @@ setup_dotfiles() {
   declare -A links # like [target_path]=link_path
 
   # compile link map
-  for item in "$dotfiles/"* "$dotfiles/".*; do
+  for item in "$DOTFILES/"* "$DOTFILES/".*; do
     array_has_element ignored_paths "$item" && continue
     if [[ -d "$item" ]]; then
       case "$(basename "$item")" in

@@ -1,5 +1,8 @@
+#!/usr/bin/env bash
+
+[[ -v BLUEPRINT ]] || fatal 'config_scripts.sh requires BLUEPRINT'
+
 CONFIG_SCRIPTS="$VULPIX_CONFIG/config"
-BLUEPRINT="${BLUEPRINT:-$VULPIX_CONFIG/blueprint.yaml}"
 
 _get_config_scripts() {
   local package=$1

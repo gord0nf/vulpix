@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-[[ -v VULPIX_LOG ]] || fatal 'no VULPIX_LOG'
+[[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
 
 # clear logs on init
 rm -fr "$VULPIX_LOG"

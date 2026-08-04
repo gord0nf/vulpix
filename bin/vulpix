@@ -26,26 +26,16 @@ if ! [[ -d "$VULPIX" ]]; then
 fi
 export VULPIX="$VULPIX"
 
-# source utils and logging ASAP
+# source utils ASAP
 [[ -f "$VULPIX/utils.sh" ]] && source "$VULPIX/utils.sh" || {
 	echo 'failed to source $VULPIX/utils.sh' >&2
 	exit 1
 }
+
+# immediate script dependencies
 source_script "$VULPIX/src/logging.sh"
 
 debug "using vulpix at: $VULPIX"
-
-# script dependencies
-source_script "$VULPIX/src/tasks.sh"
-source_script "$VULPIX/src/library.sh"
-source_script "$VULPIX/src/dotfiles.sh"
-source_script "$VULPIX/src/config_scripts.sh"
-
-get_blueprint() {
-	local bp="${1:-$VULPIX_CONFIG/blueprint.yaml}"
-	[[ -f "$bp" ]] || fatal "no blueprint at $bp"
-	echo "$bp"
-}
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
@@ -150,26 +140,26 @@ debug "blueprint_path=$blueprint_path"
 debug "subcommand=$subcommand"
 debug "subcommand args: ${subcommand_args[@]}"
 
+export BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
+
 # process subcommand ------------------------------------------------------------------------------
 
 dotfiles_subcommand() {
 	[[ "${#subcommand_args[@]}" -gt 1 ]] && fatal 'invalid number of subcommand args'
 	dotfiles_path="${subcommand_args[0]}"
-
-	# get dotfiles path from blueprint if necessary
-	if [[ -z "$dotfiles_path" ]]; then
-		debug 'getting dotfiles path from blueprint'
-		BLUEPRINT=$(get_blueprint "$blueprint_path")
-		dotfiles_path=$(yq_safe -r '.dotfiles' "$BLUEPRINT") || fatal 'failed to parse blueprint'
-		[[ -z "$dotfiles_path" || "$dotfiles_path" == 'null' ]] && {
-			err 'please specify in blueprint or as option'
+	if [[ -d "$dotfiles_path" ]]; then
+		export DOTFILES="$dotfiles_path"
+	else
+		source_script "$VULPIX/src/blueprint.sh"
+		if [[ -z "$DOTFILES" ]]; then
+			err 'please specify dotfiles in blueprint or as arg'
 			fatal 'could not find dotfiles entry in blueprint'
-		}
+		fi
 	fi
+	debug "dotfiles=$DOTFILES"
 
-	debug "dotfiles=$dotfiles_path"
-	[[ -d "$dotfiles_path" ]] || fatal "no directory at '$dotfiles_path'"
-	setup_dotfiles "$dotfiles_path" || fatal 'dotfiles setup failed'
+	source_script "$VULPIX/src/dotfiles.sh"
+	setup_dotfiles || fatal 'dotfiles setup failed'
 }
 
 edit_subcommand() {
@@ -235,6 +225,8 @@ case "$subcommand" in
 	;;
 esac
 
+# NOTE: from here on, we assume main execution, which is setup/config of packages
+
 debug "clean=$clean"
 debug "install=$install"
 debug "reinstall=$reinstall_instead_of_update"
@@ -244,7 +236,7 @@ debug "scope: ${scope_packages[@]}"
 
 # load blueprint ----------------------------------------------------------------------------------
 
-BLUEPRINT=$(get_blueprint "$blueprint_path")
+source_script "$VULPIX/src/blueprint.sh"
 
 blueprint_packages=()
 yq_get_array blueprint_packages '.packages[]' "$BLUEPRINT" ||
@@ -267,10 +259,12 @@ if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
 	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
 fi
 
+# package management ------------------------------------------------------------------------------
+
+source_script "$VULPIX/src/tasks.sh"
+
 # test = exit before doing anything
 $is_test && exit
-
-# package management ------------------------------------------------------------------------------
 
 package_management_for_manager() {
 	local manager=$1
@@ -363,6 +357,7 @@ package_management_for_manager() {
 
 if $clean || $install; then
 	debug 'manager stuff start'
+	source_script "$VULPIX/src/library.sh"
 
 	managers=()
 
@@ -410,6 +405,7 @@ fi
 
 if $config; then
 	debug 'config stuff start'
+	source_script "$VULPIX/src/config_scripts.sh"
 
 	to_config=('global')
 
