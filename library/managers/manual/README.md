@@ -66,7 +66,7 @@ therefore, it is used by the vulpix bootstrap scripts (`bootstrap.sh` and `boots
 install dependencies.
 
 if bash is installed, any package can be bootstrapped by downloading and sourcing `utils.sh` and
-`library/managers/manual'/utils.sh`, then running `library/packages/${package}/manual.sh` (make sure
+`library/managers/manual/utils.sh`, then running `library/packages/${package}/manual.sh` (make sure
 the parent script computes MANUAL_ROOT correctly!). NOTE: `bootstrap.sh` only supports directory
 returns from manual.sh.
 

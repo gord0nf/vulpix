@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+LIBRARY="$SCRIPT_DIR/../.."
 
 DEPENDENCIES=(grep sed awk curl unzip tar yq)
-LIBRARY="$SCRIPT_DIR/.."
 MANUAL_ROOT="$VULPIX_DATA/manual"
 BIN="$MANUAL_ROOT/bin"
 STATUS="$MANUAL_ROOT/status.yaml"
 N_GRACE_DAYS=30 # number of days before deactivated packages are actually destroyed
 
-source_script "$SCRIPT_DIR/manual/utils.sh"
+source_script "$SCRIPT_DIR/utils.sh"
 
 _get_install_script() {
   echo "$LIBRARY/packages/$1/manual.sh"
