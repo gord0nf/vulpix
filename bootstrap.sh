@@ -36,7 +36,7 @@ info 'will install at highest privilege (run with root to install globally)'
 is_root && level=system || level=user
 verify "continue with bootstrap at $level level?" || fatal 'bootstrap aborted'
 
-# define MANUAL_ROOT, which SHOULD BE THE SAME as defined in `library/managers/manual.sh`
+# define MANUAL_ROOT, which SHOULD BE THE SAME as defined in `library/managers/manual/interface.sh`
 MANUAL_ROOT="$VULPIX_DATA/manual"
 debug "manual root: $MANUAL_ROOT"
 

@@ -13,17 +13,17 @@ REQUIRED_MANAGER_FUNCTIONS=(
   'reinstall_packages'
 )
 
-_get_manager_script() {
-  echo "$LIBRARY/managers/$1.sh"
+_get_manager_interface() {
+  echo "$LIBRARY/managers/$1/interface.sh"
 }
 
 is_manager() {
-  [[ -f "$(_get_manager_script "$1")" ]]
+  [[ -f "$(_get_manager_interface "$1")" ]]
 }
 
-# sources manager script, with checks
+# sources manager interface, with checks
 load_manager() {
-  local script=$(_get_manager_script "$1")
+  local script=$(_get_manager_interface "$1")
   source_script "$script" || fatal 'invalid manager'
 
   # verify required exports

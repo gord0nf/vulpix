@@ -1,11 +1,12 @@
 # managers
 
-each manager has a script in this directory with one purpose: to export functions that allow the
-parent script to update packages installed by the manager to reflect the blueprint.
+each manager has a subdirectory in this dir with one purpose. each subdirectory must implement a
+`interface.sh` with one purpose: to export functions that allow the parent script to
+install/uninstall/update/reinstall packages installed by the manager to reflect the blueprint.
 
-each manager script should export the following functions (a "package" input or output is a string
-corresponding to a dir name in `library/packages`, so some conversion to manager package name might
-be required):
+each manager interface script should export the following functions (a "package" input or output is
+a string corresponding to a dir name in `library/packages`, so some conversion to manager package
+name might be required):
 
 ```bash
 # Required.
