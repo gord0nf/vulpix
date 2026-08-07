@@ -5,10 +5,11 @@ set -e
 OVERRIDE_INSTALL="$1"
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-VULPIX_REPO='gord0nf/vulpix'
+VULPIX_REPO="${VULPIX_REPO:-gord0nf/vulpix}"
+VULPIX_BRANCH="${VULPIX_BRANCH:-main}"
 VULPIX_REPO_GIT="https://github.com/$VULPIX_REPO"
-VULPIX_REPO_RAW="https://raw.githubusercontent.com/$VULPIX_REPO/refs/heads/main"
-VULPIX_REPO_TARBALL="$VULPIX_REPO_GIT/tarball/main"
+VULPIX_REPO_RAW="https://raw.githubusercontent.com/$VULPIX_REPO/refs/heads/$VULPIX_BRANCH"
+VULPIX_REPO_TARBALL="$VULPIX_REPO_GIT/tarball/$VULPIX_BRANCH"
 
 command_exists() {
   command -v "$1" &>/dev/null
@@ -74,7 +75,7 @@ clone_source() {
 }
 
 update_source() {
-  git -C "$1" pull origin main && git -C "$1" checkout main
+  git -C "$1" pull origin "$VULPIX_BRANCH" && git -C "$1" checkout "$VULPIX_BRANCH"
 }
 
 download_source() {
