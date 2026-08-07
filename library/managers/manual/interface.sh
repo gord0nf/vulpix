@@ -106,13 +106,15 @@ _install_update_package() {
   local install_dir=$(_get_install_dir "$package")
   local tmp_install_dir=$(atomic_change_start "$install_dir")
 
-  # run as subshell to fork bash context and capture output
-  bin_paths=$(source "$install_script" "$tmp_install_dir") || {
+  # load_array_by_line_from_command runs install_cmd as subshell to fork bash context and capture output
+  local install_cmd="source '$install_script' '$tmp_install_dir' || fatal 'install script failed'"
+  local bin_paths=()
+  load_array_by_line_from_command bin_paths \
+    eval "$install_cmd" || {
     err "'$package' install failed. rolling back changes..."
     atomic_change_abort "$install_dir"
     return 1
   }
-  readarray -t bin_paths <<<"$bin_paths"
 
   # add status.yaml entry
   yq_safe --in-place '.'$package' = {"active": true, "last_active": "'$(date +%Y-%m-%d)'"}' "$STATUS" &&

@@ -8,128 +8,124 @@
 [[ "$MAX_PROCESSES" =~ ^[0-9]+$ ]] || fatal 'invalid MAX_PROCESSES'
 [[ "$MAX_PROCESSES" -ge 1 ]] || fatal 'MAX_PROCESSES must at least be 1'
 
-TASK_LOCKFILE="$VULPIX_TMP/tasks.lock"
-TASK_DIR="$VULPIX_TMP/tasks"
+# source of truth between processes for the tasks that are running --------------------------------
 
-# clean tasks on init
-rm -fr "$TASK_DIR"
-mkdir -p "$TASK_DIR"
+TASK_FILE="$VULPIX_TMP/running_tasks.list"
+TASK_LOCK_TIMEOUT=30 # seconds
 
-_await_tasks_lock() {
-  while [ -f "$TASK_LOCKFILE" ]; do
-    sleep 1
-  done
+# clean on init
+mkdir -p "$VULPIX_TMP"
+echo >"$TASK_FILE"
+
+_lock_acquire() {
+  exec {LOCKFD}<"$TASK_FILE" || fatal '_lock_acquire: could not establish lock'
+  flock -x -w "$TASK_LOCK_TIMEOUT" $LOCKFD || fatal '_lock_acquire: failed'
 }
 
-_lock_tasks() {
-  ! [ -f "$TASK_LOCKFILE" ] || fatal "_lock_tasks: could not create lock (possible race condition)"
-  touch "$TASK_LOCKFILE"
+_lock_release() {
+  test "$LOCKFD" || fatal '_lock_release: file not locked'
+  flock -u $LOCKFD && exec {LOCKFD}>&- && unset LOCKFD || fatal '_lock_release: failed'
 }
 
-_unlock_tasks() {
-  [ -f "$TASK_LOCKFILE" ] || fatal "_unlock_tasks: tasks not locked"
-  rm "$TASK_LOCKFILE"
+_load_running_tasks() {
+  _lock_acquire
+  load_array_by_line running_tasks <"$TASK_FILE"
+  debug "loaded running tasks: ${running_tasks[@]}"
 }
 
-_count_tasks() {
-  [ -f "$TASK_LOCKFILE" ] || fatal '_count_tasks: tasks not locked'
-  find "$TASK_DIR" -maxdepth 1 -type f | wc -l
+_set_running_tasks() {
+  debug "setting running tasks: ${running_tasks[@]}"
+  printf '%s\n' "${running_tasks[@]}" >"$TASK_FILE"
+  _lock_release
 }
 
-_add_task() {
-  [ -f "$TASK_LOCKFILE" ] || fatal '_add_task: tasks not locked'
-  touch "$TASK_DIR/$1"
-}
+# run task funcs ----------------------------------------------------------------------------------
 
-_remove_task() {
-  [ -f "$TASK_LOCKFILE" ] || fatal '_add_task: tasks not locked'
-  [ -f "$TASK_DIR/$1" ] || fatal '_add_task: no such task'
-  rm "$TASK_DIR/$1"
-}
+TASK_POLL_PERIOD=1 # seconds
 
 _task_create() {
   # wait until there are less tasks than MAX_PROCESSES
   while true; do
-    _await_tasks_lock
-    _lock_tasks
-    [[ "$(_count_tasks)" -lt "$MAX_PROCESSES" ]] && break
-    _unlock_tasks
-    sleep 1
+    _load_running_tasks
+    [[ "${#running_tasks[@]}" -lt "$MAX_PROCESSES" ]] && break
+    _lock_release
+    sleep $TASK_POLL_PERIOD
   done
 
-  _add_task "$1"
-  _unlock_tasks
+  running_tasks+=("$TASK_NAME")
+  _set_running_tasks
 }
 
-_task_cleanup() {
-  status=$?
-  [[ -v TASK_NAME ]] || fatal '_task_cleanup: requires TASK_NAME'
-
-  # cleanup task
-  _await_tasks_lock
-  _lock_tasks
-  _remove_task "$TASK_NAME"
-  _unlock_tasks
-
-  # log exit status
-  [[ $status -eq 0 ]] && success 'success' || err 'failure'
-
-  return $status
+_task_remove() {
+  _load_running_tasks
+  array_remove_element running_tasks "$TASK_NAME"
+  _set_running_tasks
 }
 
-# starts task syncronously
-run_foreground_task() {
-  local task_name="$1" prefix="  [$1] "
-  shift
+_task_handle_output() {
+  prefix_output "  [$TASK_NAME] "
+}
 
-  _task_create "$task_name" # stops execution until task can start
-
+_task_main() {
   (
-    export TASK_NAME="$task_name"
     export LOG_FILE="tasks/$TASK_NAME.log"
     info 'running new task'
     log_stdout
-    trap _task_cleanup EXIT
+    trap '[ $? -eq 0 ] && success "success" || err "failure"' EXIT
     "$@"
-  ) \
-    > >(prefix_output "$prefix" >&2) 2> >(prefix_output "$prefix" >&2)
+  ) |& _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
+}
+
+# exported functions ------------------------------------------------------------------------------
+
+# starts task syncronously
+run_foreground_task() {
+  export TASK_NAME="$1"
+  shift
+
+  _task_create # stops execution until task can start
+  debug "task start '$TASK_NAME'"
+
+  _task_main "$@"
+  exit_status=$?
+  _task_remove
+
+  debug "task done '$TASK_NAME'"
+  unset TASK_NAME
+  return $exit_status
 }
 
 # starts task asyncronously
 run_background_task() {
-  local task_name="$1" prefix="  [$1] "
+  export TASK_NAME="$1"
   shift
 
-  _task_create "$task_name" # stops execution until task can start
-
+  _task_create # stops execution until task can start
   (
-    export TASK_NAME="$task_name"
-    export LOG_FILE="tasks/$TASK_NAME.log"
-    info 'running new task'
-    log_stdout
-    trap _task_cleanup EXIT
-    "$@"
-  ) \
-    > >(prefix_output "$prefix" >&2) 2> >(prefix_output "$prefix" >&2) \
-    & # background process
+    debug "task start '$TASK_NAME'"
+    _task_main "$@"
+    exit_status=$?
+    _task_remove
+    debug "task done '$TASK_NAME'"
+    return $exit_status
+  ) &
+
+  unset TASK_NAME
 }
 
 # number of times to verify that there are 0 tasks running to make sure that no more are being spawned
 AWAIT_VERIFIES=3 # TODO: there's probably a better way...
 
 await_tasks() {
-  n_verifies=0
-
+  local n_verifies=0
   while true; do
-    _await_tasks_lock
-    _lock_tasks
-    n="$(_count_tasks)"
-    _unlock_tasks
+    _load_running_tasks
+    _lock_release
 
-    debug "await_tasks, task count: $n"
-    [[ "$n" -eq 0 ]] && n_verifies=$((n_verifies + 1)) || n_verifies=0
+    debug "await_tasks, task count: ${#running_tasks[@]}"
+    [[ "${#running_tasks[@]}" -eq 0 ]] && n_verifies=$((n_verifies + 1)) || n_verifies=0
     [[ "$n_verifies" -eq "$AWAIT_VERIFIES" ]] && break
 
-    sleep 1
+    sleep $TASK_POLL_PERIOD
   done
 }

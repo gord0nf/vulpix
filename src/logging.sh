@@ -22,12 +22,14 @@ _log() {
 
 # programming interface ---------------------------------------------------------------------------
 
+output() {
+  while IFS= read -r line; do
+    _log 'OUTPUT' "$line"
+  done
+}
+
 log_stdout() {
-  exec 1> >(
-    while IFS= read -r line; do
-      _log 'OUTPUT' "$line"
-    done
-  )
+  exec 1> >(output)
 }
 
 _log_interface() {

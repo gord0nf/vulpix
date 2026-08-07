@@ -3,6 +3,8 @@
 # a bunch of general util functions and env vars.
 # also provides default logs to stdout/stderr, which can be overridden (such as the case with cli logging)
 
+set -o pipefail
+
 # functions ---------------------------------------------------------------------------------------
 
 # basic default logging
@@ -129,6 +131,42 @@ array_has_element() {
   return 1
 }
 
+array_remove_element() {
+  local -n array=$1
+  local element=$2
+  for ((i = ${#array[@]} - 1; i >= 0; i--)); do
+    if [[ "${array[i]}" == "$element" ]]; then
+      unset 'array[i]'
+    fi
+  done
+  array=("${array[@]}")
+}
+
+# NOTE: DO NOT USE IN PIPES because pipe commands start in subprocesses so it doesn't load the array in the current context
+load_array_by_line() {
+  local -n array=$1
+  local first_line=true
+  array=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if $first_line && [[ -z "${line//[[:space:]]/}" ]]; then
+      break
+    fi
+    array+=("$line")
+    first_line=false
+  done </dev/stdin
+}
+
+# NOTE: runs target command in subshell
+load_array_by_line_from_command() {
+  local array_name=$1
+  shift
+  load_array_by_line $array_name < <("$@") || {
+    err 'load_array_by_line: failed'
+    return 1
+  }
+  wait "$!" || return $? # fails if the target command fails
+}
+
 # use like join_by 'sep' "${array[@]}"
 join_by() {
   local d=${1-} f=${2-}
@@ -167,17 +205,19 @@ yq_safe() {
         ;;
     esac
   done
-  yq "${args[@]}"
+  debug "running: yq ${args[@]}"
+  yq "${args[@]}" | tee >(output >/dev/null) || {
+    err 'yq_safe: yq failed'
+    return 1
+  }
 }
 
 yq_get_array() {
   local -n array=$1
   local query=$2 file=$3
   shift && shift && shift
-  array=()
-  _array=$(yq_safe -r "$@" "$query" "$file") || return 1
-  [[ -z "$_array" ]] && return
-  readarray -t _array <<<"$_array" && array=("${_array[@]}")
+  load_array_by_line_from_command ${!array} \
+    yq_safe -r "$@" "$query" "$file"
 }
 
 yq_set_array() {

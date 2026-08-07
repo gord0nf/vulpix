@@ -53,14 +53,13 @@ bootstrap_package() {
     info "downloading $script"
     eval "$DOWNLOAD '$VULPIX_REPO_RAW/$script' > '$scriptf'"
   fi
-  bin_dirs=()
-  bins=$(source "$scriptf" "$install_dir")
-  [[ $? -eq 0 ]] || return 1
-  [[ -n "$bins" ]] && readarray -t bin_dirs <<<"$bins"
-  [[ "${#bin_dirs[@]}" -eq 0 ]] && return 1
-  debug "$1 bin dirs: ${bin_dirs[@]}"
 
-  echo # style
+  local bin_dirs=()
+  load_array_by_line_from_command bin_dirs \
+    source "$scriptf" "$install_dir" ||
+    return 1
+  debug "$1 bin dirs: ${bin_dirs[@]}"
+  [[ "${#bin_dirs[@]}" -eq 0 ]] && return 1
 
   # add to PATH (only for bash session, but that's all that's needed)
   for dir in "${bin_dirs[@]}"; do
