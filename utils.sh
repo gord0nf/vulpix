@@ -209,6 +209,7 @@ yq_get_array() {
 }
 
 yq_set_array() {
+  [[ $# -gt 3 ]]
   local -n array=$2
   local query=$1 file=$3
   shift && shift && shift
@@ -226,6 +227,7 @@ yq_set_array() {
 }
 
 yq_has_key() {
+  [[ $# -eq 3 ]]
   local query=$1 key=$2 file=$3
   case $(_yq_implementation) in
     go)
@@ -251,11 +253,13 @@ yq_merge_yamls() {
 
 # git bash on windows is iffy about detecting junctions as existing using just [ -e ... ]
 item_exists() {
+  [[ $# -eq 1 ]]
   [[ -e "$1" ]] || ls "$1" &>/dev/null
 }
 
 # functions for atomic item (file or directory) change through a temporary directory
 atomic_change_start() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   ! item_exists "$tmpitem" || fatal '_atomic_change_start used incorrectly by devs!'
   if item_exists "$item"; then
@@ -264,10 +268,12 @@ atomic_change_start() {
   echo "$tmpitem"
 }
 atomic_change_abort() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   rm -fr "$tmpitem"
 }
 atomic_change_apply() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   item_exists "$tmpitem" || fatal '_atomic_change_apply used incorrectly by devs!'
   rm -fr "$item" && mv "$tmpitem" "$item"
@@ -275,6 +281,7 @@ atomic_change_apply() {
 
 # returns 0 if link created, else 1
 file_link() {
+  [[ $# -eq 2 ]]
   local link=$1 target=$2
   MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
@@ -282,20 +289,24 @@ file_link() {
 
 # returns 0 if link created, else 1
 dir_link() {
+  [[ $# -eq 2 ]]
   local link=$1 target=$2
   MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows junction, checks ect.
 }
 
 dir_is_empty() {
+  [[ $# -eq 1 ]]
   [ -z "$(ls -A "$1")" ]
 }
 
 file_is_empty() {
-  [ -z "$(cat "$file")" ]
+  [[ $# -eq 1 ]]
+  [ -z "$(cat "$1")" ]
 }
 
 normalize_path() {
+  [[ $# -eq 1 ]]
   local path="$1"
   if [[ "$path" != "/" ]]; then
     path="${path%/}"
@@ -309,6 +320,7 @@ normalize_path() {
 
 # add color to stdout
 colorize() {
+  [[ $# -eq 1 ]]
   local color="$1"
   xargs -n1 -d '\n' printf "${color}%s${RESET}\n" </dev/stdin
 }
@@ -319,11 +331,13 @@ decolorize() {
 }
 
 prefix_output() {
+  [[ $# -eq 1 ]]
   stdbuf -oL sed "s/^/$1/" </dev/stdin
 }
 
 # parse package string like package_name@manager into $parsed_package and $parsed_manager
 parse_package() {
+  [[ $# -eq 1 ]]
   [[ "$1" =~ ^(.+)@(.+)$ ]] && {
     parsed_package=${BASH_REMATCH[1]}
     parsed_manager=${BASH_REMATCH[2]}
