@@ -156,7 +156,7 @@ load_array_by_line() {
 
 # NOTE: runs target command in subshell
 load_array_by_line_from_command() {
-  [[ $# -eq 1 ]]
+  [[ $# -gt 1 ]]
   local array_name=$1
   shift
   load_array_by_line $array_name < <("$@") || {
@@ -213,7 +213,7 @@ yq_safe() {
 }
 
 yq_get_array() {
-  [[ $# -gt 3 ]]
+  [[ $# -ge 3 ]]
   local -n array=$1
   local query=$2 file=$3
   shift && shift && shift
@@ -222,7 +222,7 @@ yq_get_array() {
 }
 
 yq_set_array() {
-  [[ $# -gt 3 ]]
+  [[ $# -ge 3 ]]
   local -n array=$2
   local query=$1 file=$3
   shift && shift && shift
@@ -315,8 +315,8 @@ dir_is_empty() {
 }
 
 file_is_empty() {
-  [[ $# -eq 1 ]]
-  [ -z "$(cat "$1")" ]
+  [[ $# -eq 1 ]] && local file=$1
+  [ -z "$(cat "$file")" ]
 }
 
 normalize_path() {
