@@ -6,12 +6,14 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 export GLOBAL_ENV=$(realpath "$SCRIPT_DIR/../../.env")
 
 global_env_unset() {
+  [[ $# -eq 1 ]]
   local variable=$1
   unset "$variable"
   sed -i "/^$variable=/d" "$GLOBAL_ENV"
 }
 
 global_env_set() {
+  [[ $# -eq 2 ]]
   local variable=$1 value=$2
   global_env_unset "$variable"
   export "$variable"="$value"
@@ -19,6 +21,7 @@ global_env_set() {
 }
 
 global_env_append() {
+  [[ $# -eq 2 ]]
   local variable=$1 value=$2
   export "$variable"="${!variable}$value"
 
@@ -33,8 +36,10 @@ global_env_append() {
 
 # specifically for adding to PATH in global env, if it's not already there
 global_env_add_path() {
+  [[ $# -eq 1 || $# -eq 2 ]]
   local p=$(convert_path_if_needed --unix "$1") # global PATH stored in unix format
-  [[ "$2" == '--force' ]] && local force=true || local force=false
+  local force=false
+  if [[ $# -eq 2 ]] && [[ "$2" == '--force' ]]; then force=true; fi
   if ! $force; then
     [[ -d "$p" ]] || return 1 # ensure existence
   fi

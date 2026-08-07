@@ -23,13 +23,13 @@ _log() {
 # programming interface ---------------------------------------------------------------------------
 
 output() {
-  while IFS= read -r line; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
     _log 'OUTPUT' "$line"
-  done
+  done </dev/stdin
 }
 
 log_stdout() {
-  exec 1> >(output)
+  exec 1> >(tee >(output &>/dev/null))
 }
 
 _log_interface() {

@@ -7,7 +7,7 @@ CONFIG_SCRIPTS="$VULPIX_CONFIG/config"
 _get_config_scripts() {
   local package=$1
   scripts=()
-  [[ -f "$CONFIG_SCRIPTS/$package.sh" ]] && scripts+=("$CONFIG_SCRIPTS/$package.sh")
+  if [[ -f "$CONFIG_SCRIPTS/$package.sh" ]]; then scripts+=("$CONFIG_SCRIPTS/$package.sh"); fi
   for script in "$CONFIG_SCRIPTS/$package.d/"*.{sh,ps1}; do
     scripts+=("$script")
   done
@@ -44,7 +44,6 @@ _configure_package() {
 
 configure_packages() {
   local -n packages=$1
-  shopt -s nullglob
 
   # source shared utils
   for script in "$CONFIG_SCRIPTS/shared/"*.sh; do
@@ -57,8 +56,6 @@ configure_packages() {
     # TODO: asyncronous config scripts by numbered 00-script.sh format
     run_foreground_task "config $package" _configure_package "$package"
   done
-
-  shopt -u nullglob
 }
 
 # hardcoded config script utils -------------------------------------------------------------------
@@ -92,6 +89,6 @@ config_query() {
   shift && shift
   _is_simple_query "$query" || warn 'vulpix: be careful using config_query() with complex yq queries'
   [[ "$query" == .* ]] || query=".$query"
-  [[ "$query" == '.' ]] && query=
+  ! [[ "$query" == '.' ]] || query=''
   blueprint_query ".config.$package$query" "$@"
 }

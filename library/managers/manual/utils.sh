@@ -10,7 +10,7 @@ raw_logs_to_logs() {
   while IFS= read -r line; do
     log_type=${line%%:*}
     log_type=${log_type,,} # lowercase
-    [[ "$log_type" == 'error' ]] && log_type='err'
+    if [[ "$log_type" == 'error' ]]; then log_type='err'; fi
     if function_exists "$log_type"; then
       log=${line#*:}
       "$log_type" "$(trimstring "$log")" </dev/null

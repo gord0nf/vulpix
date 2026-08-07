@@ -3,7 +3,7 @@
 INSTALL_DIR="$1"
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-[[ -z "$INSTALL_DIR" ]] && fatal 'no install dir specified'
+[[ -n "$INSTALL_DIR" ]] || fatal 'no install dir specified'
 
 _windows() {
   local install_dir=$(convert_path_if_needed --windows "$INSTALL_DIR")

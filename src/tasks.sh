@@ -47,7 +47,7 @@ _task_create() {
   # wait until there are less tasks than MAX_PROCESSES
   while true; do
     _load_running_tasks
-    [[ "${#running_tasks[@]}" -lt "$MAX_PROCESSES" ]] && break
+    if [[ "${#running_tasks[@]}" -lt "$MAX_PROCESSES" ]]; then break; fi
     _lock_release
     sleep $TASK_POLL_PERIOD
   done
@@ -124,7 +124,7 @@ await_tasks() {
 
     debug "await_tasks, task count: ${#running_tasks[@]}"
     [[ "${#running_tasks[@]}" -eq 0 ]] && n_verifies=$((n_verifies + 1)) || n_verifies=0
-    [[ "$n_verifies" -eq "$AWAIT_VERIFIES" ]] && break
+    if [[ "$n_verifies" -eq "$AWAIT_VERIFIES" ]]; then break; fi
 
     sleep $TASK_POLL_PERIOD
   done

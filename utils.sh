@@ -3,32 +3,22 @@
 # a bunch of general util functions and env vars.
 # also provides default logs to stdout/stderr, which can be overridden (such as the case with cli logging)
 
-set -o pipefail
+set -euo pipefail
+shopt -s nullglob globstar
 
 # functions ---------------------------------------------------------------------------------------
 
 # basic default logging
-debug() {
-  if [[ -v DEBUG ]]; then echo "DEBUG: $*" >&2; fi
-}
-info() {
-  echo "INFO: $*" >&2
-}
-warn() {
-  echo "WARN: $*" >&2
-}
-success() {
-  echo "SUCCESS: $*" >&2
-}
-err() {
-  echo "ERROR: $*" >&2
-}
-fatal() {
-  echo "FATAL: $*" >&2
-  exit 1
-}
+output() { cat; }
+debug() { if [[ -v DEBUG ]]; then echo "DEBUG: $*" >&2; fi; }
+info() { echo "INFO: $*" >&2; }
+warn() { echo "WARN: $*" >&2; }
+success() { echo "SUCCESS: $*" >&2; }
+err() { echo "ERROR: $*" >&2; }
+fatal() { echo "FATAL: $*" >&2 && exit 1; }
 
 verify() {
+  [[ $# -eq 1 ]]
   read -p "$1 (y/n): " -n 1 -r REPLY
   echo # new line
   case $REPLY in
@@ -38,11 +28,13 @@ verify() {
 }
 
 prompt() {
+  [[ $# -eq 1 ]]
   read -p "$1" REPLY
   echo "$REPLY"
 }
 
 command_exists() {
+  [[ $# -eq 1 ]]
   command -v "$1" &>/dev/null
 }
 
@@ -74,10 +66,10 @@ get_arch() {
       arm64 | aarch64) ARCH=arm64 ;;
       arm*) ARCH=arm32 ;;
     esac
-    [[ -n "$ARCH" ]] && break
+    if [[ -n "$ARCH" ]]; then break; fi
   done
   [[ -n "$ARCH" ]] || fatal 'could not determine arch'
-  command_exists getconf && ARCH="${ARCH%??}$(getconf LONG_BIT)"
+  if command_exists getconf; then ARCH="${ARCH%??}$(getconf LONG_BIT)"; fi
   export ARCH
 }
 
@@ -86,10 +78,12 @@ is_root() {
 }
 
 is_git_repo() {
+  [[ $# -eq 1 ]]
   git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
 }
 
 convert_path_if_needed() {
+  [[ $# -eq 1 ]]
   local target_switch=$1
   local path=$2
   if command_exists wslpath; then
@@ -102,12 +96,13 @@ convert_path_if_needed() {
 }
 
 function_exists() {
+  [[ $# -eq 1 ]]
   [[ "$(type -t "$1")" == "function" ]]
 }
 
 # https://jcgoran.github.io/2021/02/07/bash-string-trimming.html
 trimstring() {
-  [ $# -ne 1 ] && return 1
+  [ $# -eq 1 ] || return 1
   s="${1}"
   size_before=${#s}
   size_after=0
@@ -122,6 +117,7 @@ trimstring() {
 }
 
 array_has_element() {
+  [[ $# -eq 1 ]]
   local -n array=$1
   for element in "${array[@]}"; do
     if [[ "$element" == "$2" ]]; then
@@ -132,6 +128,7 @@ array_has_element() {
 }
 
 array_remove_element() {
+  [[ $# -eq 2 ]]
   local -n array=$1
   local element=$2
   for ((i = ${#array[@]} - 1; i >= 0; i--)); do
@@ -144,6 +141,7 @@ array_remove_element() {
 
 # NOTE: DO NOT USE IN PIPES because pipe commands start in subprocesses so it doesn't load the array in the current context
 load_array_by_line() {
+  [[ $# -eq 1 ]]
   local -n array=$1
   local first_line=true
   array=()
@@ -158,6 +156,7 @@ load_array_by_line() {
 
 # NOTE: runs target command in subshell
 load_array_by_line_from_command() {
+  [[ $# -gt 1 ]]
   local array_name=$1
   shift
   load_array_by_line $array_name < <("$@") || {
@@ -177,12 +176,13 @@ join_by() {
 
 __sourced=()
 source_script() {
+  [[ $# -eq 1 ]]
   [[ -f "$1" ]] || fatal "could not source nonexistent '$1'"
   for script in "${__sourced[@]}"; do
-    [[ "$1" -ef "$script" ]] && {
+    if [[ "$1" -ef "$script" ]]; then
       debug "skipping resource of $1"
       return
-    }
+    fi
   done
   debug "sourcing $1"
   source "$1" || fatal "failed to source '$1'"
@@ -213,6 +213,7 @@ yq_safe() {
 }
 
 yq_get_array() {
+  [[ $# -ge 3 ]]
   local -n array=$1
   local query=$2 file=$3
   shift && shift && shift
@@ -221,19 +222,26 @@ yq_get_array() {
 }
 
 yq_set_array() {
+  [[ $# -ge 3 ]]
   local -n array=$2
   local query=$1 file=$3
   shift && shift && shift
-  [[ "$1" == '--append' ]] && local op_mod='+' && shift
-  [[ "${#array[@]}" -gt 0 ]] &&
+  local op='='
+  if [[ $# -gt 0 ]] && [[ "$1" == '--append' ]]; then op='+=' && shift; fi
+
+  if [[ "${#array[@]}" -gt 0 ]]; then
     local array_values="\"$(join_by '","' "${array[@]}")\""
-  [ -z "$(cat "$file")" ] && echo '{}' >"$file" # python yq doesn't handle empty files well
+  fi
+  if file_is_empty; then
+    echo '{}' >"$file" # python yq doesn't handle empty files well
+  fi
   yq_safe --in-place "$@" \
-    "$query $op_mod= [$array_values]" \
+    "$query $op [$array_values]" \
     "$file"
 }
 
 yq_has_key() {
+  [[ $# -eq 3 ]]
   local query=$1 key=$2 file=$3
   case $(_yq_implementation) in
     go)
@@ -259,21 +267,27 @@ yq_merge_yamls() {
 
 # git bash on windows is iffy about detecting junctions as existing using just [ -e ... ]
 item_exists() {
+  [[ $# -eq 1 ]]
   [[ -e "$1" ]] || ls "$1" &>/dev/null
 }
 
 # functions for atomic item (file or directory) change through a temporary directory
 atomic_change_start() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   ! item_exists "$tmpitem" || fatal '_atomic_change_start used incorrectly by devs!'
-  item_exists "$item" && cp --recursive --no-dereference --preserve=links "$item" "$tmpitem"
+  if item_exists "$item"; then
+    cp --recursive --no-dereference --preserve=links "$item" "$tmpitem"
+  fi
   echo "$tmpitem"
 }
 atomic_change_abort() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   rm -fr "$tmpitem"
 }
 atomic_change_apply() {
+  [[ $# -eq 1 ]]
   local item="$1" tmpitem="$1.temp"
   item_exists "$tmpitem" || fatal '_atomic_change_apply used incorrectly by devs!'
   rm -fr "$item" && mv "$tmpitem" "$item"
@@ -281,6 +295,7 @@ atomic_change_apply() {
 
 # returns 0 if link created, else 1
 file_link() {
+  [[ $# -eq 2 ]]
   local link=$1 target=$2
   MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
@@ -288,16 +303,24 @@ file_link() {
 
 # returns 0 if link created, else 1
 dir_link() {
+  [[ $# -eq 2 ]]
   local link=$1 target=$2
   MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows junction, checks ect.
 }
 
 dir_is_empty() {
+  [[ $# -eq 1 ]]
   [ -z "$(ls -A "$1")" ]
 }
 
+file_is_empty() {
+  [[ $# -eq 1 ]] && local file=$1
+  [ -z "$(cat "$file")" ]
+}
+
 normalize_path() {
+  [[ $# -eq 1 ]]
   local path="$1"
   if [[ "$path" != "/" ]]; then
     path="${path%/}"
@@ -311,6 +334,7 @@ normalize_path() {
 
 # add color to stdout
 colorize() {
+  [[ $# -eq 1 ]]
   local color="$1"
   xargs -n1 -d '\n' printf "${color}%s${RESET}\n" </dev/stdin
 }
@@ -321,11 +345,27 @@ decolorize() {
 }
 
 prefix_output() {
+  [[ $# -eq 1 ]]
   stdbuf -oL sed "s/^/$1/" </dev/stdin
+}
+
+# set exit status in $exit_status
+wait_safe() {
+  [[ $# -ge 1 ]]
+  local pid=$1
+  shift
+  if kill -0 "$pid" 2>/dev/null; then
+    wait "$@" "$pid"
+    exit_status=$?
+  else
+    wait "$@" "$pid" 2>/dev/null || true
+    exit_status=$?
+  fi
 }
 
 # parse package string like package_name@manager into $parsed_package and $parsed_manager
 parse_package() {
+  [[ $# -eq 1 ]]
   [[ "$1" =~ ^(.+)@(.+)$ ]] && {
     parsed_package=${BASH_REMATCH[1]}
     parsed_manager=${BASH_REMATCH[2]}
@@ -346,61 +386,71 @@ if [[ $OS == windows ]]; then
 fi
 
 # VULPIX_INSTALL
-if [[ -v VULPIX ]]; then
-  VULPIX_INSTALL="$VULPIX" # cli requires $VULPIX as dir with vulpix source
-else
-  if is_root; then
-    [[ $OS == windows ]] &&
-      VULPIX_INSTALL="$ProgramFiles/vulpix" ||
-      VULPIX_INSTALL="/opt/vulpix"
+if ! [[ -v VULPIX_INSTALL ]]; then
+  if [[ -v VULPIX ]]; then
+    VULPIX_INSTALL="$VULPIX" # cli requires $VULPIX as dir with vulpix source
   else
-    [[ $OS == windows ]] &&
-      VULPIX_INSTALL="$LOCALAPPDATA/Programs/vulpix" ||
-      VULPIX_INSTALL="$HOME/.local/opt/vulpix"
+    if is_root; then
+      [[ $OS == windows ]] &&
+        VULPIX_INSTALL="$ProgramFiles/vulpix" ||
+        VULPIX_INSTALL="/opt/vulpix"
+    else
+      [[ $OS == windows ]] &&
+        VULPIX_INSTALL="$LOCALAPPDATA/Programs/vulpix" ||
+        VULPIX_INSTALL="$HOME/.local/opt/vulpix"
+    fi
   fi
 fi
 export VULPIX_INSTALL
 
 # VULPIX_DATA
-if is_root; then
-  [[ $OS == windows ]] &&
-    VULPIX_DATA="$ProgramData/vulpix" ||
-    VULPIX_DATA="/var/lib/vulpix"
-else
-  [[ $OS == windows ]] &&
-    VULPIX_DATA="$LOCALAPPDATA/vulpix" ||
-    VULPIX_DATA="${XDG_STATE_HOME:-$HOME/.local/state}/vulpix"
+if ! [[ -v VULPIX_DATA ]]; then
+  if is_root; then
+    [[ $OS == windows ]] &&
+      VULPIX_DATA="$ProgramData/vulpix" ||
+      VULPIX_DATA="/var/lib/vulpix"
+  else
+    [[ $OS == windows ]] &&
+      VULPIX_DATA="$LOCALAPPDATA/vulpix" ||
+      VULPIX_DATA="${XDG_STATE_HOME:-$HOME/.local/state}/vulpix"
+  fi
 fi
 export VULPIX_DATA
 
 # VULPIX_LOG
-if is_root; then
-  [[ $OS == windows ]] &&
-    VULPIX_LOG="$ProgramData/vulpix/log" ||
-    VULPIX_LOG="/var/log/vulpix"
-else
-  [[ $OS == windows ]] &&
-    VULPIX_LOG="$LOCALAPPDATA/vulpix/log" ||
-    VULPIX_LOG="${XDG_STATE_HOME:-$HOME/.local/state}/vulpix/log"
+if ! [[ -v VULPIX_LOG ]]; then
+  if is_root; then
+    [[ $OS == windows ]] &&
+      VULPIX_LOG="$ProgramData/vulpix/log" ||
+      VULPIX_LOG="/var/log/vulpix"
+  else
+    [[ $OS == windows ]] &&
+      VULPIX_LOG="$LOCALAPPDATA/vulpix/log" ||
+      VULPIX_LOG="${XDG_STATE_HOME:-$HOME/.local/state}/vulpix/log"
+  fi
 fi
 export VULPIX_LOG
 
 # VUPLIX_CONFIG
-if is_root; then
-  [[ $OS == windows ]] &&
-    VULPIX_CONFIG="$ProgramData/vulpix/config" ||
-    VULPIX_CONFIG="/etc/vulpix"
-else
-  [[ $OS == windows ]] &&
-    VULPIX_CONFIG="$APPDATA/Roaming/vulpix" ||
-    VULPIX_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vulpix"
+if ! [[ -v VULPIX_CONFIG ]]; then
+  if is_root; then
+    [[ $OS == windows ]] &&
+      VULPIX_CONFIG="$ProgramData/vulpix/config" ||
+      VULPIX_CONFIG="/etc/vulpix"
+  else
+    [[ $OS == windows ]] &&
+      VULPIX_CONFIG="$APPDATA/Roaming/vulpix" ||
+      VULPIX_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/vulpix"
+  fi
 fi
 export VULPIX_CONFIG
 
 # VUPLIX_TMP
-[[ $OS == windows ]] &&
-  VULPIX_TMP="$TMP/vulpix" ||
-  VULPIX_TMP="/tmp/vulpix"
+if ! [[ -v VULPIX_TMP ]]; then
+  [[ $OS == windows ]] &&
+    VULPIX_TMP="$TMP/vulpix" ||
+    VULPIX_TMP="/tmp/vulpix"
+fi
 export VULPIX_TMP
 
 # ansi color codes
