@@ -271,8 +271,17 @@ normalize_path() {
 
 # add color to stdout
 colorize() {
-  local in=$(cat)
-  printf "$1%s$RESET\n" "$in"
+  local color="$1"
+  xargs -n1 -d '\n' printf "${color}%s${RESET}\n" </dev/stdin
+}
+
+# https://superuser.com/questions/380772/removing-ansi-color-codes-from-text-stream
+decolorize() {
+  stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' </dev/stdin
+}
+
+prefix_output() {
+  stdbuf -oL sed "s/^/$1/" </dev/stdin
 }
 
 # parse package string like package_name@manager into $parsed_package and $parsed_manager

@@ -397,23 +397,22 @@ package_management_for_manager() {
 }
 
 if $clean || $install; then
-	debug 'manager stuff start'
+	echo -e '\n< package management phase >\n' | info 2> >(decolorize | colorize "$CYAN" >&2)
 
-	pids=()
 	for manager in "${managers[@]}"; do
-		# start in a subshell so manager script doesn't clutter env. start in background so multiple
-		# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
-		package_management_for_manager "$manager" \
-			$(manager_blueprint_packages "$manager") \
-			$(manager_scope_packages "$manager") &
-		pids+=($!)
+		prefix="manager[$manager] "
+    # start in a subshell so manager script doesn't clutter env. start in background so multiple
+    # packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
+    package_management_for_manager "$manager" \
+      $(manager_blueprint_packages "$manager") \
+      $(manager_scope_packages "$manager") \
+      > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
+      &
 	done
 
 	# wait for all package_management_for_manager background processes to finish
 	# NOTE: any tasks spawned by manager should be completed by the time package_management_for_manager ends via await_tasks
-	for pid in "${pids[@]}"; do
-		wait "$pid"
-	done
+	wait
 
 	debug 'manager stuff end'
 fi
@@ -421,7 +420,7 @@ fi
 # config global, then packages --------------------------------------------------------------------
 
 if $config; then
-	debug 'config stuff start'
+	echo -e '\n< package configuration phase >\n' | info 2> >(decolorize | colorize "$CYAN" >&2)
 	source_script "$VULPIX/src/config_scripts.sh"
 
 	to_config=('global')

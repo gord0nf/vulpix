@@ -47,9 +47,7 @@ _remove_task() {
   rm "$TASK_DIR/$1"
 }
 
-_task_init() {
-  local taskname="$1"
-
+_task_create() {
   # wait until there are less tasks than MAX_PROCESSES
   while true; do
     _await_tasks_lock
@@ -59,51 +57,63 @@ _task_init() {
     sleep 1
   done
 
-  # add task
-  _add_task "$taskname"
+  _add_task "$1"
   _unlock_tasks
-
-  # set log context and init log
-  export TASK="$taskname"
-  warn 'running new task'
 }
 
 _task_cleanup() {
   status=$?
+  [[ -v TASK_NAME ]] || fatal '_task_cleanup: requires TASK_NAME'
 
   # cleanup task
   _await_tasks_lock
   _lock_tasks
-  _remove_task "$TASK"
+  _remove_task "$TASK_NAME"
   _unlock_tasks
 
-  # log exit status and reset log context
+  # log exit status
   [[ $status -eq 0 ]] && success 'success' || err 'failure'
-  unset TASK
 
   return $status
 }
 
 # starts task syncronously
 run_foreground_task() {
-  _task_init "$1" # stops execution until task can start
+  local task_name="$1" prefix="  [$1] "
   shift
-  ("$@")
-  _task_cleanup
+
+  _task_create "$task_name" # stops execution until task can start
+
+  (
+    export TASK_NAME="$task_name"
+    export LOG_FILE="tasks/$TASK_NAME"
+    info 'running new task'
+    trap _task_cleanup EXIT
+    "$@"
+  ) \
+    > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2)
 }
 
 # starts task asyncronously
 run_background_task() {
-  _task_init "$1" # stops execution until task can start
+  local task_name="$1" prefix="  [$1] "
   shift
+
+  _task_create "$task_name" # stops execution until task can start
+
   (
+    export TASK_NAME="$task_name"
+    export LOG_FILE="tasks/$TASK_NAME"
+    info 'running new task'
     trap _task_cleanup EXIT
     "$@"
-  ) &
-  unset TASK # reset log context after subprocess has been forked
+  ) \
+    > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
+    & # background process
 }
 
-AWAIT_VERIFIES=3 # number of times to verify that there are 0 tasks running to make sure that no more are being spawned
+# number of times to verify that there are 0 tasks running to make sure that no more are being spawned
+AWAIT_VERIFIES=3 # TODO: there's probably a better way...
 
 await_tasks() {
   n_verifies=0
