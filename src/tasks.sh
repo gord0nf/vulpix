@@ -86,12 +86,13 @@ run_foreground_task() {
 
   (
     export TASK_NAME="$task_name"
-    export LOG_FILE="tasks/$TASK_NAME"
+    export LOG_FILE="tasks/$TASK_NAME.log"
     info 'running new task'
+    log_stdout
     trap _task_cleanup EXIT
     "$@"
   ) \
-    > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2)
+    > >(prefix_output "$prefix" >&2) 2> >(prefix_output "$prefix" >&2)
 }
 
 # starts task asyncronously
@@ -103,12 +104,13 @@ run_background_task() {
 
   (
     export TASK_NAME="$task_name"
-    export LOG_FILE="tasks/$TASK_NAME"
+    export LOG_FILE="tasks/$TASK_NAME.log"
     info 'running new task'
+    log_stdout
     trap _task_cleanup EXIT
     "$@"
   ) \
-    > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
+    > >(prefix_output "$prefix" >&2) 2> >(prefix_output "$prefix" >&2) \
     & # background process
 }
 
@@ -124,7 +126,8 @@ await_tasks() {
     n="$(_count_tasks)"
     _unlock_tasks
 
-    [[ "$n" -eq 0 ]] && n_verifies=$((n_verifies + 1))
+    debug "await_tasks, task count: $n"
+    [[ "$n" -eq 0 ]] && n_verifies=$((n_verifies + 1)) || n_verifies=0
     [[ "$n_verifies" -eq "$AWAIT_VERIFIES" ]] && break
 
     sleep 1

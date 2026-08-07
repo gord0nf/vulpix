@@ -32,10 +32,10 @@ export VULPIX="$VULPIX"
 	exit 1
 }
 
-# immediate script dependencies
+# init logging ASAP
 source_script "$VULPIX/src/logging.sh"
-
 debug "using vulpix at: $VULPIX"
+log_stdout
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
@@ -314,6 +314,7 @@ package_management_for_manager() {
 	debug "blueprint packages for $manager: ${blueprint_packages[@]}"
 	debug "scope packages for $manager: ${scope_packages[@]}"
 
+	debug 'starting package management'
 	load_manager "$manager"
 
 	if function_exists presetup; then
@@ -394,6 +395,8 @@ package_management_for_manager() {
 		info "running $manager postsetup"
 		run_foreground_task "postsetup $manager" postsetup || fatal "$manager postsetup failed"
 	fi
+
+	debug "finished package management"
 }
 
 if $clean || $install; then

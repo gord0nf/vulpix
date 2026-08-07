@@ -22,6 +22,14 @@ _log() {
 
 # programming interface ---------------------------------------------------------------------------
 
+log_stdout() {
+  exec 1> >(
+    while IFS= read -r line; do
+      _log 'OUTPUT' "$line"
+    done
+  )
+}
+
 _log_interface() {
   local log_level=$1
   local color=$2
