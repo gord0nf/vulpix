@@ -234,9 +234,17 @@ debug "scope: ${SCOPE_PACKAGES[@]}"
 
 # load blueprint and parse packages ---------------------------------------------------------------
 
+info 'checking validity of managers/packages'
+
 source_script "$VULPIX/src/blueprint.sh"
 source_script "$VULPIX/src/library.sh"
 source_script "$VULPIX/src/tasks.sh"
+
+# no SCOPE_PACKAGES implies no scope (all backages)
+if [[ "${#SCOPE_PACKAGES[@]}" -eq 0 ]]; then
+	SCOPE_PACKAGES=("${BLUEPRINT_PACKAGES[@]}")
+	debug "expanded SCOPE_PACKAGES to: ${SCOPE_PACKAGES[@]}"
+fi
 
 managers=()
 
@@ -249,8 +257,8 @@ for package in "${SCOPE_PACKAGES[@]}"; do
 	# create and append to manager packages array
 	array_name=$(manager_scope_packages "$parsed_manager")
 	array_has_element managers "$parsed_manager" || managers+=("$parsed_manager")
-	[[ -v "$array_name" ]] || declare -a "$array_name"
-	declare -n pkgs="$array_name"
+	[[ -v $array_name ]] || declare -a $array_name
+	declare -n pkgs=$array_name
 	pkgs+=("$parsed_package")
 done
 
@@ -263,16 +271,18 @@ for package in "${BLUEPRINT_PACKAGES[@]}"; do
 	# create and append to manager packages array
 	array_name=$(manager_blueprint_packages "$parsed_manager")
 	array_has_element managers "$parsed_manager" || managers+=("$parsed_manager")
-	[[ -v "$array_name" ]] || declare -a "$array_name"
-	declare -n pkgs="$array_name"
+	[[ -v $array_name ]] || declare -a $array_name
+	declare -n pkgs=$array_name
 	pkgs+=("$parsed_package")
+	unset -n pkgs
 done
 
 # for each manager, check 1) can use manager and 2) whether manager supports packages (both blueprint and scope)
 for manager in "${managers[@]}"; do
-	declare -n scope_pkgs=$(manager_scope_packages "$manager")
-	declare -n bp_pkgs=$(manager_blueprint_packages "$manager")
-	pkgs=("${scope_pkgs[@]}" "${bp_pkgs[@]}")
+	unset -n scope_pkgs && declare -n scope_pkgs=$(manager_scope_packages "$manager")
+	unset -n bp_pkgs && declare -n bp_pkgs=$(manager_blueprint_packages "$manager")
+	debug "scope packages for $manager: ${scope_pkgs[@]}"
+	debug "blueprint packages for $manager: ${bp_pkgs[@]}"
 
 	( # run in subshell to not clutter env
 		load_manager "$manager"
@@ -280,7 +290,7 @@ for manager in "${managers[@]}"; do
 		run_foreground_task "check $manager availability" can_use_manager ||
 			fatal "cannot use '$manager' manager on your system/user"
 
-		for package in "${pkgs[@]}"; do
+		for package in "${scope_pkgs[@]}" "${bp_pkgs[@]}"; do
 			package_is_supported "$package" || fatal "$manager manager does not support '$package'"
 		done
 	) || fatal 'unsupported manager/package(s) in scope or blueprint'
@@ -304,15 +314,10 @@ fi
 
 # package management ------------------------------------------------------------------------------
 
-# test = exit before doing anything
-$is_test && exit
-
 package_management_for_manager() {
 	local manager=$1
 	local -n blueprint_packages=$2
 	local -n scope_packages=$3
-	debug "blueprint packages for $manager: ${blueprint_packages[@]}"
-	debug "scope packages for $manager: ${scope_packages[@]}"
 
 	debug 'starting package management'
 	load_manager "$manager"
@@ -344,21 +349,25 @@ package_management_for_manager() {
 	debug "to_uninstall: ${to_uninstall[@]}"
 
 	# apply scope
-	if [[ "${#scope_packages[@]}" -gt 0 ]]; then
-		debug 'applying scope'
-		to_install_tmp=() to_update_tmp=()
-		for package in "${scope_packages[@]}"; do
-			if array_has_element to_install "$package"; then
-				to_install_tmp+=("$package")
-			elif array_has_element to_update "$package"; then
-				to_update_tmp+=("$package")
-			else
-				fatal 'scope package not in to_install or to_update (this should not happen...)'
-			fi
-		done
-		to_install=("${to_install_tmp[@]}")
-		to_update=("${to_update_tmp[@]}")
-	fi
+	debug 'applying scope'
+	to_install_tmp=() to_update_tmp=()
+	for package in "${scope_packages[@]}"; do
+		if array_has_element to_install "$package"; then
+			to_install_tmp+=("$package")
+		elif array_has_element to_update "$package"; then
+			to_update_tmp+=("$package")
+		else
+			fatal 'scope package not in to_install or to_update (this should not happen...)'
+		fi
+	done
+	to_install=("${to_install_tmp[@]}")
+	to_update=("${to_update_tmp[@]}")
+
+	debug "scoped to_install: ${to_install[@]}"
+	debug "scoped to_update: ${to_update[@]}"
+
+	# test = exit before doing anything
+	$is_test && exit
 
 	if $clean; then
 		if [[ "${#to_uninstall[@]}" -gt 0 ]]; then
@@ -402,20 +411,29 @@ package_management_for_manager() {
 if $clean || $install; then
 	echo -e '\n< package management phase >\n' | info 2> >(decolorize | colorize "$CYAN" >&2)
 
+	declare -A manager_pids
 	for manager in "${managers[@]}"; do
+		declare -n scope_packages=$(manager_scope_packages "$manager")
 		prefix="manager[$manager] "
-    # start in a subshell so manager script doesn't clutter env. start in background so multiple
-    # packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
-    package_management_for_manager "$manager" \
-      $(manager_blueprint_packages "$manager") \
-      $(manager_scope_packages "$manager") \
-      > >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
-      &
+		if [[ "${#scope_packages[@]}" -gt 0 ]]; then
+			# start in a subshell so manager script doesn't clutter env. start in background so multiple
+			# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
+			package_management_for_manager "$manager" \
+				$(manager_blueprint_packages "$manager") \
+				$(manager_scope_packages "$manager") \
+				> >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
+				&
+			manager_pids["$manager"]="$!"
+		fi
 	done
 
 	# wait for all package_management_for_manager background processes to finish
 	# NOTE: any tasks spawned by manager should be completed by the time package_management_for_manager ends via await_tasks
-	wait
+	for manager in "${!manager_pids[@]}"; do
+		debug "waiting for '$manager' manager pid"
+		wait "${manager_pids["$manager"]}"
+		# TODO handle manager pid exit status (eg for checking if only some packge installs were successful)
+	done
 
 	debug 'manager stuff end'
 fi
