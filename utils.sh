@@ -212,7 +212,7 @@ yq_set_array() {
   local -n array=$2
   local query=$1 file=$3
   shift && shift && shift
-  if [[ "$1" == '--append' ]]; then local op_mod='+' && shift; fi
+  if [[ $# -gt 0 && "$1" == '--append' ]]; then local op_mod='+' && shift; fi
 
   if [[ "${#array[@]}" -gt 0 ]]; then
     local array_values="\"$(join_by '","' "${array[@]}")\""
