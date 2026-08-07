@@ -21,7 +21,7 @@ _get_install_dir() {
 
 _get_bin_link_filename() {
   local package=$1 relative_path=$(normalize_path "$2")
-  [[ "$relative_path" == '.' ]] && relative_path=
+  if [[ "$relative_path" == '.' ]]; then relative_path=''; fi
   local path="$(_get_install_dir "$1")/$relative_path"
   if [[ -f "$path" ]]; then
     echo "$(basename "$path")"
@@ -44,7 +44,7 @@ _activate_package() {
   for bin in "${binaries[@]}"; do
     bin_path="$(_get_install_dir "$package")/$bin"
     bin_link=$(_get_bin_link_filename "$package" "$bin")
-    [[ -z "$bin_link" ]] && continue
+    [[ -n "$bin_link" ]] || continue
     bin_link="$tmpbin/$bin_link"
     rm -fr "$bin_link"
     [[ -d "$bin_path" ]] &&
@@ -57,9 +57,10 @@ _activate_package() {
     }
   done
 
-  yq_safe --in-place '.'$package'.active = true' "$STATUS" &&
-    yq_safe --in-place '.'$package'.last_active = "'$(date +%Y-%m-%d)'"' "$STATUS"
-  [[ $? -eq 0 ]] || {
+  {
+    yq_safe --in-place '.'$package'.active = true' "$STATUS" &&
+      yq_safe --in-place '.'$package'.last_active = "'$(date +%Y-%m-%d)'"' "$STATUS"
+  } || {
     err "couldn't update entry in $STATUS"
     atomic_change_abort "$BIN"
     return 1
@@ -78,7 +79,7 @@ _deactivate_package() {
   local tmpbin=$(atomic_change_start "$BIN")
   for bin in "${binaries[@]}"; do
     bin_link=$(_get_bin_link_path "$package" "$bin")
-    [[ -z "$bin_link" ]] && continue
+    [[ -n "$bin_link" ]] || continue
     bin_link="$tmpbin/$bin_link"
     item_exists "$bin_link" || {
       warn "manual: expected binary to be linked at '$bin_link'"
@@ -117,9 +118,10 @@ _install_update_package() {
   }
 
   # add status.yaml entry
-  yq_safe --in-place '.'$package' = {"active": true, "last_active": "'$(date +%Y-%m-%d)'"}' "$STATUS" &&
-    yq_set_array '.'$package'.binaries' bin_paths "$STATUS"
-  [[ $? -eq 0 ]] || {
+  {
+    yq_safe --in-place '.'$package' = {"active": true, "last_active": "'$(date +%Y-%m-%d)'"}' "$STATUS" &&
+      yq_set_array '.'$package'.binaries' bin_paths "$STATUS"
+  } || {
     err "'$package' add status entry failed. rolling back changes..."
     atomic_change_abort "$install_dir"
     return 1

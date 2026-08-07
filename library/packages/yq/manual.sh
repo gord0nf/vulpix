@@ -3,7 +3,7 @@
 INSTALL_DIR="$1"
 REPO='mikefarah/yq'
 
-[[ -z "$INSTALL_DIR" ]] && fatal "no install dir passed"
+[[ -n "$INSTALL_DIR" ]] || fatal "no install dir passed"
 
 get_version() {
   [[ -f "$1" ]] || return 1

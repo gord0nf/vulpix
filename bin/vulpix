@@ -145,7 +145,7 @@ export BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
 # process subcommand ------------------------------------------------------------------------------
 
 dotfiles_subcommand() {
-	[[ "${#subcommand_args[@]}" -gt 1 ]] && fatal 'invalid number of subcommand args'
+	[[ "${#subcommand_args[@]}" -le 1 ]] || fatal 'invalid number of subcommand args'
 	dotfiles_path="${subcommand_args[0]}"
 	if [[ -d "$dotfiles_path" ]]; then
 		export DOTFILES="$dotfiles_path"
@@ -164,7 +164,7 @@ dotfiles_subcommand() {
 
 edit_subcommand() {
 	editor=${VISUAL:-$EDITOR}
-	[[ -z "$editor" ]] && fatal "couldn't get editor; please define VISUAL or EDITOR"
+	[[ -n "$editor" ]] || fatal "couldn't get editor; please define VISUAL or EDITOR"
 	debug "editor: $editor"
 	mkdir "$VULPIX_CONFIG"
 	"$editor" "$VULPIX_CONFIG"
@@ -215,10 +215,10 @@ case "$subcommand" in
 *)
 	if ! $is_test; then
 		func="${subcommand}_subcommand"
-		function_exists "$func" && {
+		if function_exists "$func"; then
 			$func
 			exit $?
-		}
+		fi
 	fi
 	;;
 esac
@@ -367,7 +367,7 @@ package_management_for_manager() {
 	debug "scoped to_update: ${to_update[@]}"
 
 	# test = exit before doing anything
-	$is_test && exit
+	if $is_test; then exit; fi
 
 	if $clean; then
 		if [[ "${#to_uninstall[@]}" -gt 0 ]]; then

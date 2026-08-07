@@ -7,7 +7,7 @@ CONFIG_SCRIPTS="$VULPIX_CONFIG/config"
 _get_config_scripts() {
   local package=$1
   scripts=()
-  [[ -f "$CONFIG_SCRIPTS/$package.sh" ]] && scripts+=("$CONFIG_SCRIPTS/$package.sh")
+  if [[ -f "$CONFIG_SCRIPTS/$package.sh" ]]; then scripts+=("$CONFIG_SCRIPTS/$package.sh"); fi
   for script in "$CONFIG_SCRIPTS/$package.d/"*.{sh,ps1}; do
     scripts+=("$script")
   done
@@ -89,6 +89,6 @@ config_query() {
   shift && shift
   _is_simple_query "$query" || warn 'vulpix: be careful using config_query() with complex yq queries'
   [[ "$query" == .* ]] || query=".$query"
-  [[ "$query" == '.' ]] && query=
+  ! [[ "$query" == '.' ]] || query=''
   blueprint_query ".config.$package$query" "$@"
 }

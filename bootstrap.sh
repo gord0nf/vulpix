@@ -60,7 +60,7 @@ bootstrap_package() {
     source "$scriptf" "$install_dir" ||
     return 1
   debug "$1 bin dirs: ${bin_dirs[@]}"
-  [[ "${#bin_dirs[@]}" -eq 0 ]] && return 1
+  [[ "${#bin_dirs[@]}" -gt 0 ]] || return 1
 
   # add to PATH (only for bash session, but that's all that's needed)
   for dir in "${bin_dirs[@]}"; do
@@ -111,9 +111,8 @@ else
   if command_exists git && is_git_repo "$SCRIPT_DIR"; then
     info "looks like you already cloned vulpix in script dir"
     export VULPIX_INSTALL="$SCRIPT_DIR"
-  else
-    [[ -d "$SCRIPT_DIR/.git" ]] &&
-      warn "looks like script dir might be git repo, but cannot verify"
+  elif [[ -d "$SCRIPT_DIR/.git" ]]; then
+    warn "looks like script dir might be git repo, but cannot verify"
   fi
 fi
 
@@ -161,7 +160,9 @@ use_defaults=true
 if ! dir_is_empty "$VULPIX_CONFIG"; then
   warn "$VULPIX_CONFIG not empty"
   warn "if you don't use the defaults, some setup may not work correctly"
-  verify 'keep the current configuration and skip core defaults?' && use_defaults=false
+  if verify 'keep the current configuration and skip core defaults?'; then
+    use_defaults=false
+  fi
 fi
 if $use_defaults; then
   info "copying default config to $VULPIX_CONFIG"

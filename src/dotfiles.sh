@@ -26,7 +26,7 @@ _install_fonts() {
 
 _pretty_home_path() {
   local path=$(normalize_path "$1")
-  [[ "$path" =~ ^"$HOME"(/|$) ]] && path="~${path#$HOME}"
+  if [[ "$path" =~ ^"$HOME"(/|$) ]]; then path="~${path#$HOME}"; fi
   echo "$path"
 }
 
@@ -35,7 +35,7 @@ _print_pretty_link() {
     max_item_len=0
     for i in "${!links[@]}"; do
       local pitem=$(_pretty_home_path "$i")
-      [[ "${#pitem}" -gt $max_item_len ]] && max_item_len="${#pitem}"
+      if [[ "${#pitem}" -gt $max_item_len ]]; then max_item_len="${#pitem}"; fi
     done
   fi
 
@@ -47,7 +47,7 @@ _print_pretty_link() {
 
 setup_dotfiles() {
   [[ -d "$DOTFILES" ]] || return 1
-  [[ "$DOTFILES" == *"/" ]] && DOTFILES="${DOTFILES%?}"
+  [[ "$DOTFILES" != *"/" ]] || DOTFILES="${DOTFILES%?}"
 
   ignore_file="$DOTFILES/.vulpixignore"
   font_dir="$DOTFILES/fonts"
@@ -65,13 +65,13 @@ setup_dotfiles() {
 
   # compile link map
   for item in "$DOTFILES/"* "$DOTFILES/".*; do
-    array_has_element ignored_paths "$item" && continue
+    ! array_has_element ignored_paths "$item" || continue
     if [[ -d "$item" ]]; then
       case "$(basename "$item")" in
         .config)
           for tool in "$item/"*; do
             [[ -d "$tool" ]] || continue
-            array_has_element ignored_paths "$tool" && continue
+            ! array_has_element ignored_paths "$tool" || continue
             links["$tool"]="$HOME/.config/$(basename "$tool")"
           done
           continue
