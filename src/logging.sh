@@ -4,27 +4,20 @@
 
 # clear logs on init
 rm -fr "$VULPIX_LOG"
-mkdir -p "$VULPIX_LOG" "$VULPIX_LOG/tasks"
 
-# bridge between programming and user interface ---------------------------------------------------
+# log file bridge ---------------------------------------------------------------------------------
 
-# seperates logs by $TASK env var (if not set, default to main context)
+# uses LOG_FILE env var for relative path to log file, defaulting to main.log
 _log() {
   local log_level=$1
   local message=$2
   local script_name=$(basename $0)
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-
-  local log_file='main.log'
-  [[ -v TASK ]] && local log_file="tasks/$TASK.log"
-  log_file="$VULPIX_LOG/$log_file"
+  local log_file="$VULPIX_LOG/${LOG_FILE:-main.log}"
+  mkdir -p "$(dirname "$log_file")"
 
   echo "$timestamp [$log_level] [$script_name] $message" >>"$log_file"
-
-  # return message for printing (no newline if ends in \)
-  [[ "$message" == *'\' ]] &&
-    printf "${message%?}" ||
-    echo "$message"
+  echo "$message" # return message for printing
 }
 
 # programming interface ---------------------------------------------------------------------------
@@ -34,19 +27,15 @@ _log_interface() {
   local color=$2
   shift && shift
 
-  local log_pipe=""
-  [[ -n "$color" ]] && log_pipe+=' | colorize "$color"'
-  [[ -v TASK ]] && log_pipe+=" | sed 's/^/[${TASK}] /'"
-
   # from args
   if [[ $# -gt 0 ]]; then
-    eval "_log '$log_level' '$*' $log_pipe"
+    _log "$log_level" "$*" | colorize "$color"
   fi
 
   # also from stdin
   if [[ -p /dev/stdin ]]; then
     while IFS= read -r line; do
-      eval "_log '$log_level' '$line' $log_pipe"
+      _log "$log_level" "$line" | colorize "$color"
     done
   fi
 }
@@ -77,18 +66,3 @@ fatal() {
   _log_interface 'FATAL' "$RED" "$@" >&2 </dev/stdin
   exit 1
 }
-
-# use to log internal output or external command output
-output() {
-  _log_interface 'OUTPUT' '' "$@" </dev/stdin
-}
-
-# use to log user input
-log_input() {
-  # do not reprint user input
-  _log_interface 'INPUT' '' "$@" >/dev/null </dev/stdin
-}
-
-# cli/ui interface --------------------------------------------------------------------------------
-
-# TODO

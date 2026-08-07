@@ -71,7 +71,7 @@ bootstrap_package() {
 # step 1: install source --------------------------------------------------------------------------
 
 clone_source() {
-  git clone "$VULPIX_REPO_GIT" "$1" &> >(output)
+  git clone "$VULPIX_REPO_GIT" "$1"
 }
 
 update_source() {
@@ -87,7 +87,7 @@ download_source() {
   fi
   rm -fr "$1" &>/dev/null
   mkdir -p "$1"
-  eval "$cmd" &> >(output)
+  eval "$cmd"
 }
 
 [[ -v VULPIX_INSTALL ]] || fatal "devs didn't define VULPIX_INSTALL in utils.sh"

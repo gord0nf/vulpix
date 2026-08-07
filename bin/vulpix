@@ -364,7 +364,7 @@ package_management_for_manager() {
 			info 'cleaning packages'
 			uninstall_packages to_uninstall
 		else
-			output 'no packages to clean'
+			info 'no packages to clean'
 		fi
 	fi
 
@@ -373,7 +373,7 @@ package_management_for_manager() {
 			info 'installing packages'
 			install_packages to_install
 		else
-			output 'no packages to install'
+			info 'no packages to install'
 		fi
 
 		$reinstall_instead_of_update && update_kw=reinstall || {
@@ -384,7 +384,7 @@ package_management_for_manager() {
 			info "${update_verb:-$update_kw}ing packages"
 			${update_kw}_packages to_update
 		else
-			output "no packages to $update_kw"
+			info "no packages to $update_kw"
 		fi
 	fi
 
@@ -425,7 +425,6 @@ if $config; then
 	source_script "$VULPIX/src/config_scripts.sh"
 
 	to_config=('global')
-
 	if $config_packages; then
 		[[ "${#SCOPE_PACKAGES[@]}" -gt 0 ]] &&
 			declare -n to_config_packages=SCOPE_PACKAGES ||
@@ -435,7 +434,6 @@ if $config; then
 			to_config+=("$parsed_package")
 		done
 	fi
-
 	debug "to_config: ${to_config[@]}"
 
 	# start in a subshell so config scripts don't clutter env

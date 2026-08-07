@@ -18,7 +18,7 @@ _configure_package() {
   _get_config_scripts "$package" # loads $scripts
 
   [[ "${#scripts[@]}" -gt 0 ]] || {
-    output "no scripts"
+    info "no scripts"
     return
   }
 
@@ -28,13 +28,13 @@ _configure_package() {
     case $script in
       *.sh)
         info "$rscript"
-        # start in subshell for its very own env
-        (source "$script" | output) || warn "$package: failed $rscript"
+        # start in subshell for access to utils in current env
+        (source "$script") || warn "$package: failed $rscript"
         ;;
       *.ps1)
         if [[ $OS == 'windows' ]]; then
           info "$rscript"
-          (powershell "$script" | output) || warn "$package: failed $rscript"
+          powershell "$script" || warn "$package: failed $rscript"
         fi
         ;;
     esac

@@ -19,7 +19,7 @@ _install_fonts() {
       cp -r "$fontdir/"* "$FONT_INSTALL"
       find "$FONT_INSTALL" -type d -print0 | xargs -0 chmod 755
       find "$FONT_INSTALL" -type f -print0 | xargs -0 chmod 644
-      command_exists fc-cache && fc-cache | output
+      command_exists fc-cache && fc-cache
       ;;
   esac
 }
@@ -114,7 +114,7 @@ setup_dotfiles() {
     for item in "${!links[@]}"; do
       link="${links[$item]}"
       [[ -d "$item" ]] && itype=dir || itype=file
-      _print_pretty_link "$item" | output
+      _print_pretty_link "$item"
       "${itype}_link" "$link" "$item" || fatal "couldn't creating link at '$link'"
     done
   else

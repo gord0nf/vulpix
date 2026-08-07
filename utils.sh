@@ -25,19 +25,9 @@ fatal() {
   echo "FATAL: $*" >&2
   exit 1
 }
-output() {
-  # if arg ends in \, no newline
-  [[ "$*" != *'\' ]] && echo "$*" || printf "$*"
-  read -t 0 && cat # also log stdin
-}
-log_input() {
-  : # do not reprint user input
-}
 
 verify() {
-  output "$1 (y/n): \\"
-  read -n 1 -r REPLY
-  log_input "$REPLY"
+  read -p "$1 (y/n): " -n 1 -r REPLY
   echo # new line
   case $REPLY in
     [yY]*) return 0 ;;
@@ -46,9 +36,7 @@ verify() {
 }
 
 prompt() {
-  output "$1\\"
-  read REPLY
-  log_input "$REPLY"
+  read -p "$1" REPLY
   echo "$REPLY"
 }
 
@@ -179,8 +167,7 @@ yq_safe() {
         ;;
     esac
   done
-  yq "${args[@]}" \
-    2> >(output >&2) # log yq info/err messages
+  yq "${args[@]}"
 }
 
 yq_get_array() {
@@ -255,14 +242,14 @@ atomic_change_apply() {
 # returns 0 if link created, else 1
 file_link() {
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link" 2> >(output)
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
 }
 
 # returns 0 if link created, else 1
 dir_link() {
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link" 2> >(output)
+  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
   # TODO: windows junction, checks ect.
 }
 

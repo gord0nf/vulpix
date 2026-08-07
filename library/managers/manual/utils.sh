@@ -4,7 +4,7 @@
 
 # pipe output of raw logs/output and transform into logs
 # if starts with standard prefix, like INFO: ..., it's a raw log and will call corresponding func
-# else, just a normal output log
+# else, just a normal output
 # (make sure to redirect stderr if used for logging)
 raw_logs_to_logs() {
   while IFS= read -r line; do
@@ -15,7 +15,7 @@ raw_logs_to_logs() {
       log=${line#*:}
       "$log_type" "$(trimstring "$log")" </dev/null
     else
-      output "$line"
+      echo "$line"
     fi
   done
 }
@@ -38,7 +38,7 @@ transform_var() {
 
 download() {
   local url="$1" tmp=$(mktemp)
-  curl --ssl-revoke-best-effort --fail -L -o "$tmp" "$url" 2> >(output >&2)
+  curl --ssl-revoke-best-effort --fail -L -o "$tmp" "$url"
   if [[ $? -ne 0 ]]; then
     err "download .../$(basename "$url") failed"
     rm -f "$tmp"
@@ -69,7 +69,7 @@ download_and_extract() {
 
   case "$archive_type" in
     zip)
-      unzip -o -d "$outdir" "$tmp" | output >&2 || {
+      unzip -o -d "$outdir" "$tmp" || {
         err "unzip '$file' failed"
         return 2
       }
