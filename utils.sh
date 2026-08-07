@@ -17,6 +17,7 @@ err() { echo "ERROR: $*" >&2; }
 fatal() { echo "FATAL: $*" >&2 && exit 1; }
 
 verify() {
+  [[ $# -eq 1 ]]
   read -p "$1 (y/n): " -n 1 -r REPLY
   echo # new line
   case $REPLY in
@@ -26,11 +27,13 @@ verify() {
 }
 
 prompt() {
+  [[ $# -eq 1 ]]
   read -p "$1" REPLY
   echo "$REPLY"
 }
 
 command_exists() {
+  [[ $# -eq 1 ]]
   command -v "$1" &>/dev/null
 }
 
@@ -74,10 +77,12 @@ is_root() {
 }
 
 is_git_repo() {
+  [[ $# -eq 1 ]]
   git -C "$1" rev-parse --is-inside-work-tree &>/dev/null
 }
 
 convert_path_if_needed() {
+  [[ $# -eq 1 ]]
   local target_switch=$1
   local path=$2
   if command_exists wslpath; then
@@ -90,6 +95,7 @@ convert_path_if_needed() {
 }
 
 function_exists() {
+  [[ $# -eq 1 ]]
   [[ "$(type -t "$1")" == "function" ]]
 }
 
@@ -110,6 +116,7 @@ trimstring() {
 }
 
 array_has_element() {
+  [[ $# -eq 1 ]]
   local -n array=$1
   for element in "${array[@]}"; do
     if [[ "$element" == "$2" ]]; then
@@ -120,6 +127,7 @@ array_has_element() {
 }
 
 array_remove_element() {
+  [[ $# -eq 2 ]]
   local -n array=$1
   local element=$2
   for ((i = ${#array[@]} - 1; i >= 0; i--)); do
@@ -132,6 +140,7 @@ array_remove_element() {
 
 # NOTE: DO NOT USE IN PIPES because pipe commands start in subprocesses so it doesn't load the array in the current context
 load_array_by_line() {
+  [[ $# -eq 1 ]]
   local -n array=$1
   local first_line=true
   array=()
@@ -146,6 +155,7 @@ load_array_by_line() {
 
 # NOTE: runs target command in subshell
 load_array_by_line_from_command() {
+  [[ $# -eq 1 ]]
   local array_name=$1
   shift
   load_array_by_line $array_name < <("$@") || {
@@ -165,6 +175,7 @@ join_by() {
 
 __sourced=()
 source_script() {
+  [[ $# -eq 1 ]]
   [[ -f "$1" ]] || fatal "could not source nonexistent '$1'"
   for script in "${__sourced[@]}"; do
     if [[ "$1" -ef "$script" ]]; then
@@ -201,6 +212,7 @@ yq_safe() {
 }
 
 yq_get_array() {
+  [[ $# -gt 3 ]]
   local -n array=$1
   local query=$2 file=$3
   shift && shift && shift
@@ -213,7 +225,8 @@ yq_set_array() {
   local -n array=$2
   local query=$1 file=$3
   shift && shift && shift
-  if [[ $# -gt 0 && "$1" == '--append' ]]; then local op_mod='+' && shift; fi
+  local op='='
+  if [[ $# -gt 0 && "$1" == '--append' ]]; then op='+=' && shift; fi
 
   if [[ "${#array[@]}" -gt 0 ]]; then
     local array_values="\"$(join_by '","' "${array[@]}")\""
