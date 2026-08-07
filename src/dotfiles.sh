@@ -48,7 +48,6 @@ _print_pretty_link() {
 setup_dotfiles() {
   [[ -d "$DOTFILES" ]] || return 1
   [[ "$DOTFILES" == *"/" ]] && DOTFILES="${DOTFILES%?}"
-  shopt -s nullglob globstar
 
   ignore_file="$DOTFILES/.vulpixignore"
   font_dir="$DOTFILES/fonts"
@@ -127,6 +126,4 @@ setup_dotfiles() {
     info "installing fonts from '$font_dir'"
     _install_fonts "$font_dir" || warn 'font installation failed'
   fi
-
-  shopt -u nullglob globstar
 }

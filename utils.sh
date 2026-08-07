@@ -3,7 +3,7 @@
 # a bunch of general util functions and env vars.
 # also provides default logs to stdout/stderr, which can be overridden (such as the case with cli logging)
 
-set -o pipefail
+set -euo pipefail nullglob globstar
 
 # functions ---------------------------------------------------------------------------------------
 

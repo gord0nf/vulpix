@@ -44,7 +44,6 @@ _configure_package() {
 
 configure_packages() {
   local -n packages=$1
-  shopt -s nullglob
 
   # source shared utils
   for script in "$CONFIG_SCRIPTS/shared/"*.sh; do
@@ -57,8 +56,6 @@ configure_packages() {
     # TODO: asyncronous config scripts by numbered 00-script.sh format
     run_foreground_task "config $package" _configure_package "$package"
   done
-
-  shopt -u nullglob
 }
 
 # hardcoded config script utils -------------------------------------------------------------------

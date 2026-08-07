@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 BIN="$VULPIX_DATA/manual/bin"
-shopt -u nullglob
+shopt -s nullglob
 
 if [[ -d "$BIN" ]]; then
   global_env_add_path "$BIN"
