@@ -41,10 +41,12 @@ _load_settings_from_blueprint() {
   # default setting values
   export DOTFILES=
   export MAX_PROCESSES=5
+  export APT_MODE='safe'
 
   declare -A SETTINGS=(
     [DOTFILES]='.dotfiles'
     [MAX_PROCESSES]='.max_bg_processes'
+    [APT_MODE]='.apt_mode'
   )
 
   for setting in "${!SETTINGS[@]}"; do
