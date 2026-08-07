@@ -226,7 +226,7 @@ yq_set_array() {
   local query=$1 file=$3
   shift && shift && shift
   local op='='
-  if [[ $# -gt 0 && "$1" == '--append' ]]; then op='+=' && shift; fi
+  if [[ $# -gt 0 ]] && [[ "$1" == '--append' ]]; then op='+=' && shift; fi
 
   if [[ "${#array[@]}" -gt 0 ]]; then
     local array_values="\"$(join_by '","' "${array[@]}")\""
@@ -235,7 +235,7 @@ yq_set_array() {
     echo '{}' >"$file" # python yq doesn't handle empty files well
   fi
   yq_safe --in-place "$@" \
-    "$query $op_mod= [$array_values]" \
+    "$query $op [$array_values]" \
     "$file"
 }
 
