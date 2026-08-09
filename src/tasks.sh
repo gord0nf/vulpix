@@ -184,6 +184,12 @@ _update_task_section_footer() {
   fi
 }
 
+_task_handle_output() {
+  ${TASK_SECTION:-false} &&
+    cat >/dev/null ||
+    prefix_output "  [$TASK_NAME] "
+}
+
 _log_task_done() {
   local taskname="$1" exit_status="$2"
   if ${TASK_SECTION:-false}; then
@@ -218,10 +224,6 @@ _task_remove() {
   array_remove_element running_tasks "$TASK_NAME"
   _update_task_section_footer
   _set_running_tasks
-}
-
-_task_handle_output() {
-  prefix_output "  [$TASK_NAME] "
 }
 
 _task_main() {
