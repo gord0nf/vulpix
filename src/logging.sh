@@ -128,5 +128,5 @@ replay_log_file() {
 
 enum_log_files() {
   [[ $# -eq 1 ]]
-  load_array_by_line_from_command $1 find "$VULPIX_LOG" -type f -printf "%P\n"
+  load_array_by_line_from_command $1 find "$VULPIX_LOG" -type f -name '*.log' -printf "%P\n"
 }

@@ -190,8 +190,14 @@ _task_handle_output() {
     prefix_output "  [$TASK_NAME] "
 }
 
+# run task funcs ----------------------------------------------------------------------------------
+
+TASK_POLL_PERIOD=1 # seconds
+FAILED_TASKS_LIST="$VULPIX_LOG/failed_tasks.list"
+
 _log_task_done() {
   local taskname="$1" exit_status="$2"
+  [[ "$exit_status" -eq 0 ]] || echo "$taskname" >>"$FAILED_TASKS_LIST"
   if ${TASK_SECTION:-false}; then
     [[ "$exit_status" -eq 0 ]] &&
       printf "%s (${GREEN}done${RESET})\n" "$(_log 'SUCCESS' "$taskname")" >&2 ||
@@ -200,10 +206,6 @@ _log_task_done() {
     debug "task done '$TASK_NAME' (exit: $exit_status)"
   fi
 }
-
-# run task funcs ----------------------------------------------------------------------------------
-
-TASK_POLL_PERIOD=1 # seconds
 
 _task_create() {
   # wait until there are less tasks than MAX_PROCESSES
@@ -271,6 +273,12 @@ run_background_task() {
   ) &
 
   unset TASK_NAME
+}
+
+check_task_status() {
+  local task=$1
+  [[ -f "$FAILED_TASKS_LIST" ]] || return 0
+  grep --quiet --extended-regexp "^$task$" "$FAILED_TASKS_LIST" && return 1 || return 0
 }
 
 # number of times to verify that there are 0 tasks running to make sure that no more are being spawned

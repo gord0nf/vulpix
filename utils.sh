@@ -33,18 +33,18 @@ prompt() {
   echo "$REPLY"
 }
 
-choice() {
+get_choice_idx() {
   [[ $# -eq 2 ]]
-  PS3="$1"
-  local -n options=$2
-  select opt in "${options[@]}"; do
-    if ! array_has_element options "$opt"; then
-      err 'aborted'
-      return 1
-    fi
-    echo "$opt"
-    break
+  local -n choices=$2
+  local prompt=$1 n_choices="${#choices[@]}"
+  echo
+  for ((i = 0; i < n_choices; i++)); do
+    printf "  $i) ${choices[$i]}\n"
   done
+  echo
+  read -p "$prompt" -n "${#n_choices}" -r REPLY
+  echo
+  [[ "$REPLY" =~ ^[0-9]+$ ]] && choice_idx="$REPLY"
 }
 
 command_exists() {

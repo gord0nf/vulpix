@@ -156,26 +156,38 @@ export BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
 unset LOG_FILE # main log context
 
 replay_subcommand() {
+	export MAX_PROCESSES=1 TASK_SECTION_FOOTER=0 # default env var deps
+	source_script "$VULPIX/src/tasks.sh"
+
 	local phrase="${subcommand_args[*]}"
-	local log_files=() logs=()
-	enum_log_files log_files
-	for file in "${log_files[@]}"; do
-		! [[ "$file" == 'cli.log' ]] || continue # skip cli.log cause that was overwritten
-		if [[ "$file" == *"$phrase"* ]]; then
-			logs+=("$file")
+	local all_logs=() logs=()
+	enum_log_files all_logs
+	for log in "${all_logs[@]}"; do
+		! [[ "$log" == 'cli.log' ]] || continue # skip cli.log cause that was overwritten
+		if [[ "$log" == *"$phrase"* ]]; then
+			logs+=("$log")
 		fi
 	done
 
-	local log=
 	case "${#logs[@]}" in
 	0)
 		[[ -z "$phrase" ]] &&
 			fatal 'no logs to replay. try running a normal vulpix operation, then replaying.' ||
 			fatal 'no logs matching phrase.'
 		;;
-	1) log="${logs[0]}" ;;
-	*) log=$(choice 'select log to replay: ' logs) ;;
+	1) log_idx=0 ;;
+	*)
+		local log_choices=()
+		for log in "${logs[@]}"; do
+			local fancy_log="'$CYAN$log$RESET'"
+			check_task_status "$(basename -s .log "$log")" || fancy_log+=" (${RED}failed${RESET})"
+			log_choices+=("$fancy_log")
+		done
+		get_choice_idx 'select log to replay: ' log_choices >&3 || fatal 'aborted'
+		log_idx="$choice_idx"
+		;;
 	esac
+	local log="${logs[$log_idx]}"
 
 	echo "replaying '$log'" >&2
 	replay_log_file "$log" |& less -R >&3
