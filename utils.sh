@@ -188,6 +188,16 @@ join_by() {
   fi
 }
 
+# writes to sorted_array
+sort_array() {
+  [[ $# -ge 1 ]]
+  local -n array=$1
+  shift
+  sorted=$(printf '%s\n' "${array[@]}" | sort "$@") || return 1
+  sorted_array=()
+  load_array_by_line sorted_array <<<"$sorted"
+}
+
 __sourced=()
 source_script() {
   [[ $# -eq 1 ]]

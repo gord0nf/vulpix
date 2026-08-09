@@ -4,46 +4,68 @@
 
 CONFIG_SCRIPTS="$VULPIX_CONFIG/config"
 
-_get_config_scripts() {
-  local package=$1
+_get_all_config_scripts() {
+  local -n scope_packages=$1
   scripts=()
-  if [[ -f "$CONFIG_SCRIPTS/$package.sh" ]]; then scripts+=("$CONFIG_SCRIPTS/$package.sh"); fi
-  for script in "$CONFIG_SCRIPTS/$package.d/"*.{sh,ps1}; do
-    scripts+=("$script")
+  for package in "${scope_packages[@]}"; do
+    scripts+=("$CONFIG_SCRIPTS/$package.d/"*.sh "$CONFIG_SCRIPTS/$package.d/".*.sh)
+    if [[ $OS == 'windows' ]]; then
+      scripts+=("$CONFIG_SCRIPTS/$package.d/"*.ps1 "$CONFIG_SCRIPTS/$package.d/".*.ps1)
+    fi
   done
 }
 
-_configure_package() {
-  local package=$1
-  _get_config_scripts "$package" # loads $scripts
+_parse_numbered_script_prefix() {
+  [[ "$1" =~ ^([0-9]+).*$ ]] && echo "${BASH_REMATCH[1]}"
+}
 
-  [[ "${#scripts[@]}" -gt 0 ]] || {
-    info "no scripts"
-    return
-  }
+_sort_config_scripts_by_round() {
+  [[ -v scripts ]]
 
-  info "running '$package' scripts"
+  # sort by number prefix
+  local number_prefixes=()
+  unnumbered_scripts=()
   for script in "${scripts[@]}"; do
-    local rscript=$(realpath --relative-to "$CONFIG_SCRIPTS" "$script")
-    case $script in
-      *.sh)
-        info "$rscript"
-        # start in subshell for access to utils in current env
-        (source "$script") || warn "$package: failed $rscript"
-        ;;
-      *.ps1)
-        if [[ $OS == 'windows' ]]; then
-          info "$rscript"
-          powershell "$script" || warn "$package: failed $rscript"
-        fi
-        ;;
-    esac
+    if number_prefix=$(_parse_numbered_script_prefix "$(basename "$script")"); then
+      array_has_element number_prefixes $number_prefix || number_prefixes+=($number_prefix)
+      [[ -v numbered_scripts_$number_prefix ]] || declare -g -a numbered_scripts_$number_prefix
+      local -n numbered_scripts=numbered_scripts_$number_prefix
+      numbered_scripts+=("$script")
+    else
+      unnumbered_scripts+=("$script")
+    fi
   done
+  debug "unnumbered_scripts: ${unnumbered_scripts[@]}"
+  debug "number prefixes: ${number_prefixes[@]}"
 
+  # order by prefix and make global namerefs for round arrays
+  sort_array number_prefixes -n
+  debug "sorted number prefixes: ${sorted_array[@]}"
+  for ((i = 0; i < ${#sorted_array[@]}; i++)); do
+    number_prefix="${sorted_array[$i]}"
+    declare -g -n "script_round_$i"="numbered_scripts_$number_prefix"
+  done
+  if [[ ${#unnumbered_scripts[@]} -gt 0 ]]; then
+    declare -g -n "script_round_${#sorted_array[@]}"=unnumbered_scripts
+  fi
+}
+
+_run_config_script() {
+  local script=$1
+  local script_name=$(convert_path_if_needed --unix "$(
+    realpath --relative-to "$CONFIG_SCRIPTS" "$script"
+  )")
+  local task_name=$(make_task_name 'config' "${script_name//\//@}")
+  case $script in
+    *.sh) run_background_task "$task_name" source "$script" ;;
+    *.ps1) run_background_task "$task_name" powershell "$script" ;;
+  esac
 }
 
 configure_packages() {
   local -n packages=$1
+  _get_all_config_scripts packages && debug "n config scripts: ${#scripts[@]}"
+  _sort_config_scripts_by_round # load into arrays like script_round_0, script_round_1, ...
 
   # source shared utils
   for script in "$CONFIG_SCRIPTS/shared/"*.sh; do
@@ -52,9 +74,17 @@ configure_packages() {
     source_script "$script"
   done
 
-  for package in "${packages[@]}"; do
-    # TODO: asyncronous config scripts by numbered 00-script.sh format
-    run_foreground_task "$(make_task_name 'config' "$package")" _configure_package "$package"
+  # for each round, run script then wait
+  local round=0
+  while [[ -v script_round_$round ]]; do
+    debug "script_round=script_round_$round"
+    unset -n script_round && declare -n script_round=script_round_$round
+    debug "script_round_scripts: ${script_round[@]}"
+    for script in "${script_round[@]}"; do
+      _run_config_script "$script"
+    done
+    await_tasks
+    round=$((round + 1))
   done
 }
 

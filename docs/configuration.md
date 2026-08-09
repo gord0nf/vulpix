@@ -62,19 +62,21 @@ apply the config details of the blueprint to the system:
 
 ```
 $VULPIX_CONFIG/config/
-├─ global.sh # entrypoint script for global
+├─ shared/
+│  ├─ utils.sh
+│  └─ ...whatever other shared stuff
 ├─ global.d/
 │  ├─ 00-some-system-script.sh
 │  ├─ 00-windows-only-script.ps1
 │  ├─ 50-upstream-script.sh
 │  └─ ...whatever other scripts
-├─ $PACKAGE.sh # entrypoint script for $PACKAE
 ├─ $PACKAGE.d/
 │  └─ ...whatever scripts that config $PACKAGE (same format as above)
-└─ ...other scripts and *.d dirs for package config
+└─ ...other *.d dirs for package config linkage
 ```
 
-all of these scripts are optional.
+all of these scripts are optional. they will be run in the 'package coniguration' section of vulpix,
+in a [certain order](#execution-order).
 
 > [!NOTE]
 >
@@ -96,9 +98,6 @@ in general, each script should:
 - do the minimal possible to achieve goal
 - be re-executable, because they probably will be executed relatively often
 
-personally, i'd favor `package.d/` scripts, as each script would be small, be self-contained, and do
-just one thing. i wouldn't use the entrypoint `package.sh` unless i had to.
-
 #### accessing blueprint configuration
 
 use the hardcoded `blueprint_query()` or its wrapper, `config_query()`. these function use yq so
@@ -114,24 +113,56 @@ NOTE: `config_query()` just prepends '.config.$package' to the query and runs `b
 in addition to all the utililties in `utils.sh` in this repo, all of
 `$VULPIX_CONFIG/config/shared/*.sh` are sourced before executing any config script.
 
-### imporant notes
+### important notes
 
 #### execution order
 
-if it exists, `$VULPIX_CONFIG/config/$PACKAGE.sh` is always run first, then
-`$VULPIX_CONFIG/config/$PACKAGE.d/*.{sh,ps1}` are run in the standard order. if you've configured
-linux system tools, you'll recognize the `nn-...` naming standard (like `00-name.sh`), which is
-recommended to control execution order.
+vulpix supports and provides extra functionality for the `00-script.sh` syntax (i.e. prepending
+numbers to the script to define the order it should run; if you've configured linux system tools,
+you'll recognize this syntax). any script at the same level (same starting numbers) in any package's
+config will be run _in parallel_.
+
+config scripts that do not follow the `00-script.sh` naming syntax will be run in parallel at the
+end.
+
+##### example
+
+```
+$VULPIX_CONFIG/config/
+├─ global.d/
+│  ├─ 00-system.sh
+│  ├─ 10-env.sh
+│  ├─ 10-windows-env.ps1
+│  └─ 50-tidy-user.sh
+├─ bash.d/
+│  ├─ 00-system-env-vars.sh
+│  ├─ 30-fancy-prompt.sh
+│  └─ other-stuff.sh
+└─ mpd.d/
+   ├─ 10-systemctl-service-enabled.sh
+   ├─ 30-config-file.sh
+   └─ 50-tidy-music-dir.sh
+```
+
+for example, in the above sample `$VULPIX_CONFIG/config`, the scripts will be run in parallel in the
+following rounds (assuming all the packages are in the cli scope):
+
+1. `global.d/00-system.sh`, `bash.d/00-system-env-vars.sh`
+2. `global.d/10-env.sh`, `global.d/10-windows-env.ps1` (if windows),
+   `mpd.d/10-systemctl-service-enabled.sh`
+3. `bash.d/30-fancy-prompt.sh`, `mpd.d/30-config-file.sh`
+4. `global.d/50-tidy-user.sh`, `50-tidy-music-dir.sh`
+5. `bash.d/other-stuff.sh`
 
 #### connection with cli
 
-any running of `vulpix config ...` always runs `global.sh` and/or all the scripts in `global.d/`. so
-you'd want to keep these lightweight.
+any running of `vulpix config ...` always runs the scripts in `global.d/`. so you'd want to keep
+these lightweight.
 
 `vulpix config all|...packages` runs config for the specified packages (in addition to global
 config).
 
-`vulpix` with no subcommand automagically runs `vulpix config all` (after clean, install, etc.).
+`vulpix` with no subcommand automagically runs `vulpix config all` as its final step.
 
 #### default configuration scripts
 
