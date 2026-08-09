@@ -409,7 +409,7 @@ package_management_for_manager() {
 }
 
 if $clean || $install; then
-	echo -e '\n< package management phase >\n' | info 2> >(decolorize | colorize "$CYAN" >&2)
+	begin_task_section 'package management' || true
 
 	declare -A manager_pids
 	for manager in "${managers[@]}"; do
@@ -436,13 +436,13 @@ if $clean || $install; then
 		# TODO handle manager pid exit status (eg for checking if only some packge installs were successful)
 	done
 
+	end_task_section
 	debug 'manager stuff end'
 fi
 
 # config global, then packages --------------------------------------------------------------------
 
 if $config; then
-	echo -e '\n< package configuration phase >\n' | info 2> >(decolorize | colorize "$CYAN" >&2)
 	source_script "$VULPIX/src/config_scripts.sh"
 
 	to_config=('global')
@@ -457,8 +457,9 @@ if $config; then
 	fi
 	debug "to_config: ${to_config[@]}"
 
-	# start in a subshell so config scripts don't clutter env
-	(configure_packages to_config)
+	begin_task_section 'package configuration' || true
+	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
+	end_task_section
 
 	debug 'config stuff end'
 fi

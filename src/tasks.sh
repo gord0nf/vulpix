@@ -3,10 +3,18 @@
 # a task is a process that has seperate logging and is run in a forked bash subprocess (optionally
 # in parallel).
 
-[[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
-[[ -v MAX_PROCESSES ]] || fatal 'logging.sh requires MAX_PROCESSES'
+[[ -v VULPIX_LOG ]] || fatal 'tasks.sh requires VULPIX_LOG'
+[[ -v MAX_PROCESSES ]] || fatal 'tasks.sh requires MAX_PROCESSES'
 [[ "$MAX_PROCESSES" =~ ^[0-9]+$ ]] || fatal 'invalid MAX_PROCESSES'
 [[ "$MAX_PROCESSES" -ge 1 ]] || fatal 'MAX_PROCESSES must at least be 1'
+
+[[ -z "$TASK_SECTION_FOOTER" || "$TASK_SECTION_FOOTER" =~ ^[0-9]+$ ]] || fatal 'invalid TASK_SECTION_FOOTER'
+
+# conditions to disable TASK_SECTION ui
+if ! [ -t 0 ] || [ -z "$TERM" ]; then
+  info 'task section ui disabled' &>/dev/null
+  export OVERRIDE_TASK_SECTION=false
+fi
 
 # source of truth between processes for the tasks that are running --------------------------------
 
@@ -39,6 +47,94 @@ _set_running_tasks() {
   _lock_release
 }
 
+# special task section ui funcs -------------------------------------------------------------------
+
+# uses tput for header/footer (see https://www.reddit.com/r/commandline/comments/14i82e/comment/c7ddcfs/)
+
+_print_header() {
+  printf " < ${1^^} >%$((COLUMNS - "${#1}"))s\n" | tr ' ' '=' | colorize "$BOLD$CYAN"
+}
+
+_jump_to_footer_index() {
+  local index=$1
+  if ((index > TASK_SECTION_FOOTER)); then
+    return 1
+  fi
+  tput cup $((LINES - TASK_SECTION_FOOTER - 1 + index)) 0 >&3 # - 1 for footer title
+}
+
+begin_task_section() {
+  [[ $# -eq 1 ]]
+  local section_name=$1
+  export TASK_SECTION=${OVERRIDE_TASK_SECTION:-true}
+  $TASK_SECTION || return 1
+
+  export LINES=$(tput lines)
+  export COLUMNS=$(tput cols)
+
+  if [[ -z "$TASK_SECTION_FOOTER" ]]; then
+    local half_screen_lines=$((LINES / 2))
+    export TASK_SECTION_FOOTER=$((MAX_PROCESSES < half_screen_lines ? MAX_PROCESSES : half_screen_lines))
+    debug "TASK_SECTION_FOOTER=$TASK_SECTION_FOOTER"
+  fi
+  if ! ((TASK_SECTION_FOOTER < LINES)); then
+    warn 'terminal height less than TASK_SECTION_FOOTER height, so no task section ui'
+    export TASK_SECTION=false
+    return 1
+  fi
+
+  # alternate screen
+  info "opening section '$section_name' in alt screen..."
+  tput smcup >&3 && clear
+  trap 'tput rmcup >&3' EXIT SIGINT SIGTERM
+
+  # init title and footer
+  tput csr 1 $((LINES - TASK_SECTION_FOOTER - 2)) >&3 # - 2 for index offbyone + footer title
+  tput cup 0 0 && _print_header "$section_name" >&3   # title
+  if [[ "$TASK_SECTION_FOOTER" -gt 0 ]]; then
+    _jump_to_footer_index 0
+    _print_header 'tasks' >&3 # footer
+  fi
+  tput cup 1 0 >&3
+}
+
+end_task_section() {
+  if ${TASK_SECTION:-false}; then
+    tput csr 0 $(tput lines) >&3
+    tput rmcup >&3
+    export TASK_SECTION=false
+  fi
+}
+
+_update_task_section_footer() {
+  if ${TASK_SECTION:-false} && [[ "$TASK_SECTION_FOOTER" -gt 0 ]]; then
+    tput sc >&3
+    _jump_to_footer_index 1
+    for ((i = 0; i < TASK_SECTION_FOOTER; i++)); do
+      if ((i == 0 && "${#running_tasks[@]}" == 0)); then
+        printf 'no tasks running...' >&3
+      elif ((i + 1 == TASK_SECTION_FOOTER && i + 1 < ${#running_tasks[@]})); then
+        printf '...' >&3
+      elif ((i < "${#running_tasks[@]}")); then
+        printf "${running_tasks[$i]} (${YELLOW}running${RESET})" >&3
+      fi
+      printf "$(tput el)\n" >&3
+    done
+    tput rc >&3
+  fi
+}
+
+_log_task_done() {
+  local taskname="$1" exit_status="$2"
+  if ${TASK_SECTION:-false}; then
+    [[ "$exit_status" -eq 0 ]] &&
+      printf "%s (${GREEN}done${RESET})\n" "$(_log 'SUCCESS' "$taskname")" ||
+      printf "%s (${RED}failed${RESET})\n" "$(_log 'ERROR' "$taskname")"
+  else
+    debug "task done '$TASK_NAME' (exit: $exit_status)"
+  fi
+}
+
 # run task funcs ----------------------------------------------------------------------------------
 
 TASK_POLL_PERIOD=1 # seconds
@@ -53,12 +149,14 @@ _task_create() {
   done
 
   running_tasks+=("$TASK_NAME")
+  _update_task_section_footer
   _set_running_tasks
 }
 
 _task_remove() {
   _load_running_tasks
   array_remove_element running_tasks "$TASK_NAME"
+  _update_task_section_footer
   _set_running_tasks
 }
 
@@ -73,7 +171,7 @@ _task_main() {
     log_stdout
     trap '[ $? -eq 0 ] && success "success" || err "failure"' EXIT
     "$@"
-  ) |& _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
+  ) 2>&1 | _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
 }
 
 # exported functions ------------------------------------------------------------------------------
@@ -89,8 +187,8 @@ run_foreground_task() {
   _task_main "$@"
   exit_status=$?
   _task_remove
+  _log_task_done "$TASK_NAME" $exit_status
 
-  debug "task done '$TASK_NAME'"
   unset TASK_NAME
   return $exit_status
 }
@@ -106,7 +204,7 @@ run_background_task() {
     _task_main "$@"
     exit_status=$?
     _task_remove
-    debug "task done '$TASK_NAME'"
+    _log_task_done "$TASK_NAME" $exit_status
     return $exit_status
   ) &
 

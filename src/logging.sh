@@ -29,7 +29,9 @@ output() {
 }
 
 log_stdout() {
-  exec 1> >(tee >(output &>/dev/null))
+  exec 3>&1 # open fd 3 for bypassing output logs (for ui stuff)
+  exec > >(tee >(output &>/dev/null))
+  trap
 }
 
 _log_interface() {
