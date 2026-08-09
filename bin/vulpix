@@ -33,6 +33,7 @@ export VULPIX="$VULPIX"
 }
 
 # init logging ASAP
+export LOG_FILE='cli.log' && rm -f "$VULPIX_LOG/$LOG_FILE"
 source_script "$VULPIX/src/logging.sh"
 debug "using vulpix at: $VULPIX"
 open_stdout_log
@@ -81,6 +82,11 @@ subcommands:
                           packages if none specified). Prompts to add to
                           blueprint if specified packages isn't there.
 
+  replay    <phrase>      For replaying logs of tasks for seeing what went wrong/
+                          right and debugging. Searches for logs with phrase as
+                          substring and prompts which log to replay if there are
+                          multiple.
+
   dotfiles  <path>        Creates symlinks from stuff in dotfiles path
                           to all the correct locations. If <path> is not
                           supplied, uses the path in blueprint.yaml.
@@ -97,6 +103,7 @@ SUBCOMMANDS=(
 	'install'
 	'config'
 	'reinstall'
+	'replay'
 	'dotfiles'
 	'edit'
 	'bootstrap'
@@ -144,6 +151,35 @@ debug "subcommand args: ${subcommand_args[@]}"
 export BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
 
 # process subcommand ------------------------------------------------------------------------------
+
+[[ "$subcommand" == 'replay' ]] || clear_logs
+unset LOG_FILE # main log context
+
+replay_subcommand() {
+	local phrase="${subcommand_args[*]}"
+	local log_files=() logs=()
+	enum_log_files log_files
+	for file in "${log_files[@]}"; do
+		! [[ "$file" == 'cli.log' ]] || continue # skip cli.log cause that was overwritten
+		if [[ "$file" == *"$phrase"* ]]; then
+			logs+=("$file")
+		fi
+	done
+
+	local log=
+	case "${#logs[@]}" in
+	0)
+		[[ -z "$phrase" ]] &&
+			fatal 'no logs to replay. try running a normal vulpix operation, then replaying.' ||
+			fatal 'no logs matching phrase.'
+		;;
+	1) log="${logs[0]}" ;;
+	*) log=$(choice 'select log to replay: ' logs) ;;
+	esac
+
+	echo "replaying '$log'" >&2
+	replay_log_file "$log" |& less -R >&3
+}
 
 dotfiles_subcommand() {
 	[[ "${#subcommand_args[@]}" -le 1 ]] || fatal 'invalid number of subcommand args'

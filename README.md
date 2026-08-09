@@ -126,6 +126,11 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
                               packages if none specified). Prompts to add to
                               blueprint if specified packages isn't there.
 
+      replay    <phrase>      For replaying logs of tasks for seeing what went wrong/
+                              right and debugging. Searches for logs with phrase as
+                              substring and prompts which log to replay if there are
+                              multiple.
+
       dotfiles  <path>        Creates symlinks from stuff in dotfiles path
                               to all the correct locations. If <path> is not
                               supplied, uses the path in blueprint.yaml.

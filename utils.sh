@@ -33,6 +33,20 @@ prompt() {
   echo "$REPLY"
 }
 
+choice() {
+  [[ $# -eq 2 ]]
+  PS3="$1"
+  local -n options=$2
+  select opt in "${options[@]}"; do
+    if ! array_has_element options "$opt"; then
+      err 'aborted'
+      return 1
+    fi
+    echo "$opt"
+    break
+  done
+}
+
 command_exists() {
   [[ $# -eq 1 ]]
   command -v "$1" &>/dev/null

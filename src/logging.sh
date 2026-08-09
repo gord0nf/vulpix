@@ -2,8 +2,16 @@
 
 [[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
 
+mkdir -p "$VULPIX_LOG"
+
 # clear logs on init
-rm -fr "$VULPIX_LOG"
+clear_logs() {
+  [[ -v LOG_FILE && -f "$VULPIX_LOG/$LOG_FILE" ]] && current_log=true || current_log=false
+  ! $current_log || mv "$VULPIX_LOG/$LOG_FILE" "$VULPIX_TMP/$LOG_FILE"
+  rm -fr "$VULPIX_LOG"
+  mkdir -p "$VULPIX_LOG"
+  ! $current_log || mv "$VULPIX_TMP/$LOG_FILE" "$VULPIX_LOG/$LOG_FILE"
+}
 
 # log file bridge ---------------------------------------------------------------------------------
 
@@ -14,9 +22,11 @@ _log() {
   local script_name=$(basename $0)
   local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   local log_file="$VULPIX_LOG/${LOG_FILE:-main.log}"
-  mkdir -p "$(dirname "$log_file")"
 
-  echo "$timestamp [$log_level] [$script_name] $message" >>"$log_file"
+  if ! [[ -v LOG_REPLAY ]]; then
+    mkdir -p "$(dirname "$log_file")"
+    echo "$timestamp '$script_name' [$log_level] $message" >>"$log_file"
+  fi
   echo "$message" # return message for printing
 }
 
@@ -80,4 +90,43 @@ err() {
 fatal() {
   _log_interface 'FATAL' "$RED" "$@" >&2 </dev/stdin
   exit 1
+}
+
+# stuff for replaying logs ------------------------------------------------------------------------
+
+# write to log_type and log_message
+parse_log_line() {
+  local line=$1
+  [[ "$line" == *'['*']'* ]] || return 1
+  line="${line#*'['}"
+  log_type="${line%%']'*}"
+  log_type=${log_type,,} # lowercase
+  log_message="${line#*']'}"
+}
+
+replay_logs() {
+  export LOG_REPLAY=
+  local log_type= message=
+  while IFS= read -r line; do
+    if parse_log_line "$line"; then
+      if [[ "$log_type" == 'error' ]]; then log_type='err'; fi
+      if function_exists "$log_type"; then
+        "$log_type" "$(trimstring "$log_message")" </dev/null
+        continue
+      fi
+    fi
+    echo "$line"
+  done
+  unset LOG_REPLAY
+}
+
+replay_log_file() {
+  [[ $# -eq 1 ]]
+  [[ -f "$VULPIX_LOG/$1" ]] || return 1
+  replay_logs <"$VULPIX_LOG/$1"
+}
+
+enum_log_files() {
+  [[ $# -eq 1 ]]
+  load_array_by_line_from_command $1 find "$VULPIX_LOG" -type f -printf "%P\n"
 }
