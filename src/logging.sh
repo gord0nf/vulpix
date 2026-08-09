@@ -28,10 +28,13 @@ output() {
   done </dev/stdin
 }
 
-log_stdout() {
+open_stdout_log() {
   exec 3>&1 # open fd 3 for bypassing output logs (for ui stuff)
-  exec > >(tee >(output &>/dev/null))
-  trap
+  exec 1> >(output >&3)
+}
+close_stdout_log() {
+  exec 1>&3
+  exec 3>&-
 }
 
 _log_interface() {

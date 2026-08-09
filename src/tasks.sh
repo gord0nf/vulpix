@@ -47,12 +47,50 @@ _set_running_tasks() {
   _lock_release
 }
 
+# stdout/err while rendering ui to prevent conflicts ----------------------------------------------
+
+RENDER_LOCK="$VULPIX_TMP/render.lock"
+
+render() {
+  exec {fd}>"$RENDER_LOCK"
+  flock -x "$fd" || fatal 'render lock failed'
+  "$@"
+  flock -u "$fd"
+  exec {fd}>&-
+}
+
+# got to prevent normal logging while jumping around the terminal to render ui
+_buffer_until_not_rendering() {
+  while IFS= read -r line; do
+    render echo "$line"
+  done
+}
+
+open_render_output_nonconflict() {
+  # save og stderr/stdout
+  exec 3>&1
+  exec 4>&2
+  exec 1> >(output | _buffer_until_not_rendering >&3)
+  exec 2> >(_buffer_until_not_rendering >&4)
+}
+close_render_output_nonconflict() {
+  # wait until lock is free
+  while ! flock -w 0 -n "$RENDER_LOCK" true 2>/dev/null; do
+    sleep 1
+  done
+
+  exec 1>&3
+  exec 2>&4
+  exec 3>&-
+  exec 4>&-
+}
+
 # special task section ui funcs -------------------------------------------------------------------
 
 # uses tput for header/footer (see https://www.reddit.com/r/commandline/comments/14i82e/comment/c7ddcfs/)
 
 _print_header() {
-  printf " < ${1^^} >%$((COLUMNS - "${#1}"))s\n" | tr ' ' '=' | colorize "$BOLD$CYAN"
+  printf " < ${1^^} >%$((COLUMNS - "${#1}" - 5))s\n" | tr ' ' '=' | colorize "$BOLD$CYAN"
 }
 
 _jump_to_footer_index() {
@@ -60,7 +98,38 @@ _jump_to_footer_index() {
   if ((index > TASK_SECTION_FOOTER)); then
     return 1
   fi
-  tput cup $((LINES - TASK_SECTION_FOOTER - 1 + index)) 0 >&3 # - 1 for footer title
+  tput cup $((LINES - TASK_SECTION_FOOTER - 1 + index)) 0 # - 1 for footer title
+}
+
+_init_task_section_screen() {
+  # open alt screen
+  tput smcup
+  clear
+
+  # init title/footer stuff
+  tput csr 1 $((LINES - TASK_SECTION_FOOTER - 2)) # - 2 for index offbyone + footer title
+  tput cup 0 0 && _print_header "$section_name"   # title
+  if [[ "$TASK_SECTION_FOOTER" -gt 0 ]]; then
+    _jump_to_footer_index 0
+    _print_header 'tasks' # footer
+  fi
+  tput cup 1 0
+}
+
+_reprint_footer() {
+  tput sc
+  _jump_to_footer_index 1
+  for ((i = 0; i < TASK_SECTION_FOOTER; i++)); do
+    if ((i == 0 && "${#running_tasks[@]}" == 0)); then
+      printf 'no tasks running...'
+    elif ((i + 1 == TASK_SECTION_FOOTER && i + 1 < ${#running_tasks[@]})); then
+      printf '...'
+    elif ((i < "${#running_tasks[@]}")); then
+      printf "${running_tasks[$i]} (${YELLOW}running${RESET})"
+    fi
+    printf "$(tput el)\n"
+  done
+  tput rc
 }
 
 begin_task_section() {
@@ -82,45 +151,36 @@ begin_task_section() {
     export TASK_SECTION=false
     return 1
   fi
-
-  # alternate screen
   info "opening section '$section_name' in alt screen..."
-  tput smcup >&3 && clear
-  trap 'tput rmcup >&3' EXIT SIGINT SIGTERM
 
-  # init title and footer
-  tput csr 1 $((LINES - TASK_SECTION_FOOTER - 2)) >&3 # - 2 for index offbyone + footer title
-  tput cup 0 0 && _print_header "$section_name" >&3   # title
-  if [[ "$TASK_SECTION_FOOTER" -gt 0 ]]; then
-    _jump_to_footer_index 0
-    _print_header 'tasks' >&3 # footer
-  fi
-  tput cup 1 0 >&3
+  # init logging (need to prevent logging while rendering ui stuff)
+  close_stdout_log
+  open_render_output_nonconflict
+
+  render _init_task_section_screen >&3 || {
+    end_task_section
+    err '_init_task_section_screen failed'
+    warn 'no task section ui'
+    return 1
+  }
+  trap end_task_section SIGINT SIGTERM
 }
 
 end_task_section() {
   if ${TASK_SECTION:-false}; then
+    close_render_output_nonconflict
+    open_stdout_log
+
     tput csr 0 $(tput lines) >&3
     tput rmcup >&3
+
     export TASK_SECTION=false
   fi
 }
 
 _update_task_section_footer() {
   if ${TASK_SECTION:-false} && [[ "$TASK_SECTION_FOOTER" -gt 0 ]]; then
-    tput sc >&3
-    _jump_to_footer_index 1
-    for ((i = 0; i < TASK_SECTION_FOOTER; i++)); do
-      if ((i == 0 && "${#running_tasks[@]}" == 0)); then
-        printf 'no tasks running...' >&3
-      elif ((i + 1 == TASK_SECTION_FOOTER && i + 1 < ${#running_tasks[@]})); then
-        printf '...' >&3
-      elif ((i < "${#running_tasks[@]}")); then
-        printf "${running_tasks[$i]} (${YELLOW}running${RESET})" >&3
-      fi
-      printf "$(tput el)\n" >&3
-    done
-    tput rc >&3
+    render _reprint_footer >&3
   fi
 }
 
@@ -128,8 +188,8 @@ _log_task_done() {
   local taskname="$1" exit_status="$2"
   if ${TASK_SECTION:-false}; then
     [[ "$exit_status" -eq 0 ]] &&
-      printf "%s (${GREEN}done${RESET})\n" "$(_log 'SUCCESS' "$taskname")" ||
-      printf "%s (${RED}failed${RESET})\n" "$(_log 'ERROR' "$taskname")"
+      printf "%s (${GREEN}done${RESET})\n" "$(_log 'SUCCESS' "$taskname")" >&2 ||
+      printf "%s (${RED}failed${RESET})\n" "$(_log 'ERROR' "$taskname")" >&2
   else
     debug "task done '$TASK_NAME' (exit: $exit_status)"
   fi
@@ -168,7 +228,7 @@ _task_main() {
   (
     export LOG_FILE="tasks/$TASK_NAME.log"
     info 'running new task'
-    log_stdout
+    # no need for open_stdout_log(), because its maintained from parent
     trap '[ $? -eq 0 ] && success "success" || err "failure"' EXIT
     "$@"
   ) 2>&1 | _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context

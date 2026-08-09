@@ -35,7 +35,8 @@ export VULPIX="$VULPIX"
 # init logging ASAP
 source_script "$VULPIX/src/logging.sh"
 debug "using vulpix at: $VULPIX"
-log_stdout
+open_stdout_log
+trap close_stdout_log EXIT SIGINT SIGTERM
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
