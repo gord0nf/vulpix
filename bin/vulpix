@@ -216,8 +216,8 @@ edit_subcommand() {
 	editor=${VISUAL:-$EDITOR}
 	[[ -n "$editor" ]] || fatal "couldn't get editor; please define VISUAL or EDITOR"
 	debug "editor: $editor"
-	mkdir "$VULPIX_CONFIG"
-	"$editor" "$VULPIX_CONFIG"
+	mkdir -p "$VULPIX_CONFIG"
+	cd "$VULPIX_CONFIG" && "$editor" . >&3
 }
 
 bootstrap_subcommand() {
