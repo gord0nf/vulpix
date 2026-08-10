@@ -21,11 +21,16 @@ raw_logs_to_logs() {
 }
 
 get_latest_github_tag() {
-  curl -L --fail -s "https://api.github.com/repos/$1/releases/latest" |
-    sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
+  [[ $# -eq 1 ]]
+  local tag=$(
+    curl -L --fail -s "https://api.github.com/repos/$1/releases/latest" |
+      sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
+  )
+  [[ -n "$tag" ]] && echo "$tag"
 }
 
 transform_var() {
+  [[ $# -eq 2 ]]
   local var=$1 value=${!1}
   local -n transform_map=$2
   for original in "${!transform_map[@]}"; do
@@ -37,6 +42,7 @@ transform_var() {
 }
 
 download() {
+  [[ $# -eq 1 ]]
   local url="$1" tmp=$(mktemp)
   curl --ssl-revoke-best-effort --fail -L -o "$tmp" "$url"
   if [[ $? -ne 0 ]]; then
@@ -49,14 +55,15 @@ download() {
 
 # return 0 if success, 1 if download failed, 2 if extract failed
 download_and_extract() {
+  [[ $# -ge 2 ]]
   local url=$1 file=$(basename "$1")
   local outdir=$2
-  local archive_type=$3 # "zip" | "tar"; optional, falls back to url filename
+  [[ $# -eq 3 ]] && local archive_type=$3 # "zip" | "tar"; optional, falls back to url filename
 
   local tmp=$(download "$url") || return 1
   trap "rm -f '$tmp'" RETURN
 
-  if [[ -z "$archive_type" ]]; then
+  if [[ -z "${archive_type:-}" ]]; then
     case "$url" in
       *.zip) archive_type=zip ;;
       *.tar | *.tar.*) archive_type=tar ;;
@@ -96,6 +103,7 @@ download_and_extract() {
 }
 
 atomic_download_and_extract() {
+  [[ $# -ge 2 ]]
   local url=$1
   local outdir=$2
   shift && shift
