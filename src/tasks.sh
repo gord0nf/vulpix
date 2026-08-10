@@ -223,6 +223,7 @@ check_task_failed() {
 # run task funcs ----------------------------------------------------------------------------------
 
 TASK_POLL_PERIOD=1 # seconds
+task_queue=()      # NOTE: this is only for the current process, while tasks can span multiple subprocesses...
 
 _log_task_done() {
   local taskname="$1" exit_status="$2"
@@ -238,6 +239,7 @@ _log_task_done() {
 
 _task_create() {
   # wait until there are less tasks than MAX_PROCESSES
+  task_queue+=("$TASK_NAME")
   while true; do
     _load_running_tasks
     if [[ "${#running_tasks[@]}" -lt "$MAX_PROCESSES" ]]; then break; fi
@@ -248,6 +250,7 @@ _task_create() {
   running_tasks+=("$TASK_NAME")
   _update_task_section_footer
   _set_running_tasks
+  array_remove_element task_queue "$TASK_NAME"
 }
 
 _task_remove() {
@@ -303,19 +306,18 @@ run_background_task() {
   unset TASK_NAME
 }
 
-# number of times to verify that there are 0 tasks running to make sure that no more are being spawned
-AWAIT_VERIFIES=3 # TODO: there's probably a better way...
-
+# NOTE: await_tasks relis on task_queue, which only represents the current process (it's more a 'good enough' solution)
 await_tasks() {
-  local n_verifies=0
+  local n=
+  while true; do
+    if [[ "${#task_queue[@]}" -eq 0 ]]; then break; fi
+    sleep $TASK_POLL_PERIOD
+  done
   while true; do
     _load_running_tasks
+    n="${#running_tasks[@]}"
     _lock_release
-
-    debug "await_tasks, task count: ${#running_tasks[@]}"
-    [[ "${#running_tasks[@]}" -eq 0 ]] && n_verifies=$((n_verifies + 1)) || n_verifies=0
-    if [[ "$n_verifies" -eq "$AWAIT_VERIFIES" ]]; then break; fi
-
+    if [[ "$n" -eq 0 ]]; then break; fi
     sleep $TASK_POLL_PERIOD
   done
 }
