@@ -384,8 +384,8 @@ wait_safe() {
   local pid=$1
   shift
   if kill -0 "$pid" 2>/dev/null; then
-    wait "$@" "$pid"
-    exit_status=$?
+    exit_status=0
+    wait "$@" "$pid" || exit_status=$?
   else
     wait "$@" "$pid" 2>/dev/null || true
     exit_status=$?

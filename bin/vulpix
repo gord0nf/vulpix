@@ -375,8 +375,10 @@ package_management_for_manager() {
 	if function_exists presetup; then
 		info "running $manager presetup"
 		# run in foreground because it should be completed before running any manager scripts
-		run_foreground_task "$(make_task_name 'presetup' "$manager")" presetup ||
-			fatal "$manager presetup failed"
+		run_foreground_task "$(make_task_name 'presetup' "$manager")" presetup || {
+			err "$manager presetup failed"
+			return 1
+		}
 	fi
 
 	installed_packages=()
@@ -453,8 +455,10 @@ package_management_for_manager() {
 
 	if function_exists postsetup; then
 		info "running $manager postsetup"
-		run_foreground_task "$(make_task_name 'postsetup' "$manager")" postsetup ||
-			fatal "$manager postsetup failed"
+		run_foreground_task "$(make_task_name 'postsetup' "$manager")" postsetup || {
+			err "$manager postsetup failed"
+			return 1
+		}
 	fi
 
 	debug "finished package management"
@@ -502,12 +506,23 @@ if $clean || $install; then
 		success 'all package tasks successful'
 	fi
 
-	# remove failed packages from scope
+	# make note of failed packages for config (which should skip them)
 	for taskname in "${failed_tasks[@]}"; do
-		if parse_task_name "$taskname" && parse_package "$parsed_task_target"; then
-			debug "'$parsed_package' failed ($taskname), so removing from scope"
-			array_remove_element SCOPE_PACKAGES "$parsed_package"
-			failed_packages+=("$parsed_package")
+		if parse_task_name "$taskname"; then
+			if parse_package "$parsed_task_target"; then
+				debug "'$parsed_package' failed ($taskname), so marking for config skip"
+				failed_packages+=("$parsed_package")
+			elif is_manager "$parsed_task_target"; then
+				# skip all packages with manager if manager task failed
+				manager=$parsed_task_target
+				for package in "${SCOPE_PACKAGES[@]}"; do
+					parse_package "$package"
+					if [[ "$parsed_manager" == "$manager" ]]; then
+						debug "'$manager' failed ($taskname), so marking '$package' for config skip"
+						failed_packages+=("$parsed_package")
+					fi
+				done
+			fi
 		fi
 	done
 
@@ -520,18 +535,6 @@ if $config; then
 	print_divider 'package configuration' >&3
 	source_script "$VULPIX/src/config_scripts.sh"
 
-	to_config=('global')
-	if $config_packages; then
-		[[ "${#SCOPE_PACKAGES[@]}" -gt 0 ]] &&
-			declare -n to_config_packages=SCOPE_PACKAGES ||
-			declare -n to_config_packages=BLUEPRINT_PACKAGES
-		for package in "${to_config_packages[@]}"; do
-			parse_package "$package"
-			to_config+=("$parsed_package")
-		done
-	fi
-	debug "to_config: ${to_config[@]}"
-
 	# make note that failed managed packages will be skipped
 	if [[ "${#failed_packages[@]}" -gt 0 ]]; then
 		warn 'some package management tasks failed, so the packages will be skipped'
@@ -539,6 +542,20 @@ if $config; then
 		printf "  - %s (${YELLOW}skipped${RESET})\n" "${failed_packages[@]}" >&3
 		echo >&3
 	fi
+
+	to_config=('global')
+	if $config_packages; then
+		[[ "${#SCOPE_PACKAGES[@]}" -gt 0 ]] &&
+			declare -n to_config_packages=SCOPE_PACKAGES ||
+			declare -n to_config_packages=BLUEPRINT_PACKAGES
+		for package in "${to_config_packages[@]}"; do
+			parse_package "$package"
+			if ! array_has_element failed_packages "$parsed_package"; then
+				array_has_element to_config "$parsed_package" || to_config+=("$parsed_package")
+			fi
+		done
+	fi
+	debug "to_config: ${to_config[@]}"
 
 	begin_task_section 'package configuration' || true
 	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
