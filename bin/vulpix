@@ -460,6 +460,8 @@ package_management_for_manager() {
 	debug "finished package management"
 }
 
+failed_packages=()
+
 if $clean || $install; then
 	print_divider 'package management' >&3
 	begin_task_section 'package management' || true
@@ -500,8 +502,16 @@ if $clean || $install; then
 		success 'all package tasks successful'
 	fi
 
+	# remove failed packages from scope
+	for taskname in "${failed_tasks[@]}"; do
+		if parse_task_name "$taskname" && parse_package "$parsed_task_target"; then
+			debug "'$parsed_package' failed ($taskname), so removing from scope"
+			array_remove_element SCOPE_PACKAGES "$parsed_package"
+			failed_packages+=("$parsed_package")
+		fi
+	done
+
 	debug 'manager stuff end'
-	sleep 2 # give the user a moment to look at stuff
 fi
 
 # config global, then packages --------------------------------------------------------------------
@@ -521,6 +531,14 @@ if $config; then
 		done
 	fi
 	debug "to_config: ${to_config[@]}"
+
+	# make note that failed managed packages will be skipped
+	if [[ "${#failed_packages[@]}" -gt 0 ]]; then
+		warn 'some package management tasks failed, so the packages will be skipped'
+		echo 'skipping config of the following:' >&3
+		printf "  - %s (${YELLOW}skipped${RESET})\n" "${failed_packages[@]}" >&3
+		echo >&3
+	fi
 
 	begin_task_section 'package configuration' || true
 	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
