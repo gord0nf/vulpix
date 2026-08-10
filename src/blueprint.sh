@@ -44,12 +44,14 @@ _load_settings_from_blueprint() {
   export MAX_PROCESSES=${MAX_PROCESSES:-5}
   export OVERRIDE_TASK_SECTION=${OVERRIDE_TASK_SECTION:-}
   export TASK_SECTION_FOOTER=${TASK_SECTION_FOOTER:-} # true "default" is defined in begin_task_section()
+  export APT_MODE=${APT_MODE:-safe}
 
   declare -A SETTINGS=(
     [DOTFILES]='.dotfiles'
     [MAX_PROCESSES]='.max_bg_processes'
     [OVERRIDE_TASK_SECTION]='.enable_task_sections'
     [TASK_SECTION_FOOTER]='.tasks_section_footer_height'
+    [APT_MODE]='.apt_mode'
   )
 
   for setting in "${!SETTINGS[@]}"; do
