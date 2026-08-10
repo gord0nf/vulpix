@@ -149,6 +149,7 @@ debug "subcommand=$subcommand"
 debug "subcommand args: ${subcommand_args[@]}"
 
 export BLUEPRINT="${blueprint_path:-$VULPIX_CONFIG/blueprint.yaml}"
+info "using blueprint at '$BLUEPRINT'"
 
 # process subcommand ------------------------------------------------------------------------------
 
@@ -180,7 +181,7 @@ replay_subcommand() {
 		local log_choices=()
 		for log in "${logs[@]}"; do
 			local fancy_log="'$CYAN$log$RESET'"
-			check_task_status "$(basename -s .log "$log")" || fancy_log+=" (${RED}failed${RESET})"
+			! check_task_failed "$(basename -s .log "$log")" || fancy_log+=" (${RED}failed${RESET})"
 			log_choices+=("$fancy_log")
 		done
 		get_choice_idx 'select log to replay: ' log_choices >&3 || fatal 'aborted'
@@ -283,7 +284,7 @@ debug "scope: ${SCOPE_PACKAGES[@]}"
 
 # load blueprint and parse packages ---------------------------------------------------------------
 
-info 'checking validity of managers/packages'
+print_divider 'validating blueprint' >&3
 
 source_script "$VULPIX/src/blueprint.sh"
 source_script "$VULPIX/src/library.sh"
@@ -336,7 +337,7 @@ for manager in "${managers[@]}"; do
 	( # run in subshell to not clutter env
 		load_manager "$manager"
 
-		run_foreground_task "check $manager availability" can_use_manager ||
+		run_foreground_task "$(make_task_name 'can_use' "$manager")" can_use_manager ||
 			fatal "cannot use '$manager' manager on your system/user"
 
 		for package in "${scope_pkgs[@]}" "${bp_pkgs[@]}"; do
@@ -374,7 +375,8 @@ package_management_for_manager() {
 	if function_exists presetup; then
 		info "running $manager presetup"
 		# run in foreground because it should be completed before running any manager scripts
-		run_foreground_task "presetup $manager" presetup || fatal "$manager presetup failed"
+		run_foreground_task "$(make_task_name 'presetup' "$manager")" presetup ||
+			fatal "$manager presetup failed"
 	fi
 
 	installed_packages=()
@@ -451,13 +453,15 @@ package_management_for_manager() {
 
 	if function_exists postsetup; then
 		info "running $manager postsetup"
-		run_foreground_task "postsetup $manager" postsetup || fatal "$manager postsetup failed"
+		run_foreground_task "$(make_task_name 'postsetup' "$manager")" postsetup ||
+			fatal "$manager postsetup failed"
 	fi
 
 	debug "finished package management"
 }
 
 if $clean || $install; then
+	print_divider 'package management' >&3
 	begin_task_section 'package management' || true
 
 	declare -A manager_pids
@@ -481,17 +485,29 @@ if $clean || $install; then
 	for manager in "${!manager_pids[@]}"; do
 		debug "waiting for '$manager' manager pid"
 		wait_safe "${manager_pids["$manager"]}"
-		debug "'$manager' exit: $exit_status"
-		# TODO handle manager pid exit status (eg for checking if only some packge installs were successful)
 	done
 
 	end_task_section
+
+	# print managment tasks that failed
+	get_failed_tasks || true # no filter since no other tasks should fail before package managment
+	if [[ "${#failed_tasks[@]}" -gt 0 ]]; then
+		warn 'some package tasks failed'
+		warn 'run `vulpix replay <task>` to check task logs'
+		echo 'summary:' >&3
+		printf "  - %s (${RED}failed${RESET})\n" "${failed_tasks[@]}" >&3
+	else
+		success 'all package tasks successful'
+	fi
+
 	debug 'manager stuff end'
+	sleep 2 # give the user a moment to look at stuff
 fi
 
 # config global, then packages --------------------------------------------------------------------
 
 if $config; then
+	print_divider 'package configuration' >&3
 	source_script "$VULPIX/src/config_scripts.sh"
 
 	to_config=('global')
@@ -509,6 +525,17 @@ if $config; then
 	begin_task_section 'package configuration' || true
 	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
 	end_task_section
+
+	# print config tasks that failed
+	get_failed_tasks '^config' || true
+	if [[ "${#failed_tasks[@]}" -gt 0 ]]; then
+		warn 'some config tasks failed'
+		warn 'run `vulpix replay <task>` to check task logs'
+		echo 'summary:' >&3
+		printf "  - %s (${RED}failed${RESET})\n" "${failed_tasks[@]}" >&3
+	else
+		success 'all config tasks successful'
+	fi
 
 	debug 'config stuff end'
 fi

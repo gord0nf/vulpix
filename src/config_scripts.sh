@@ -54,7 +54,7 @@ configure_packages() {
 
   for package in "${packages[@]}"; do
     # TODO: asyncronous config scripts by numbered 00-script.sh format
-    run_foreground_task "config $package" _configure_package "$package"
+    run_foreground_task "$(make_task_name 'config' "$package")" _configure_package "$package"
   done
 }
 

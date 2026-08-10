@@ -187,17 +187,46 @@ _update_task_section_footer() {
 _task_handle_output() {
   ${TASK_SECTION:-false} &&
     cat >/dev/null ||
-    prefix_output "  [$TASK_NAME] "
+    prefix_output "  $TASK_NAME "
+}
+
+# task failure tracking ---------------------------------------------------------------------------
+
+FAILED_TASKS_LIST="$VULPIX_LOG/failed_tasks.list"
+
+mark_task_failed() {
+  [[ $# -eq 1 ]]
+  echo "$1" >>"$FAILED_TASKS_LIST"
+}
+
+# writes failed_tasks
+get_failed_tasks() {
+  [[ $# -eq 0 || $# -eq 1 ]]
+  failed_tasks=()
+  [[ -f "$FAILED_TASKS_LIST" ]] || return
+  if [[ $# -eq 1 ]]; then
+    local regex=$1
+    load_array_by_line_from_command failed_tasks \
+      grep --extended-regexp "$regex" "$FAILED_TASKS_LIST"
+  else
+    load_array_by_line failed_tasks <"$FAILED_TASKS_LIST"
+  fi
+}
+
+check_task_failed() {
+  [[ $# -eq 1 ]]
+  [[ -f "$FAILED_TASKS_LIST" ]] || return 1
+  get_failed_tasks "^$1$" || return 1
+  [[ "${#failed_tasks[@]}" -ne 0 ]]
 }
 
 # run task funcs ----------------------------------------------------------------------------------
 
 TASK_POLL_PERIOD=1 # seconds
-FAILED_TASKS_LIST="$VULPIX_LOG/failed_tasks.list"
 
 _log_task_done() {
   local taskname="$1" exit_status="$2"
-  [[ "$exit_status" -eq 0 ]] || echo "$taskname" >>"$FAILED_TASKS_LIST"
+  [[ "$exit_status" -eq 0 ]] || mark_task_failed "$taskname"
   if ${TASK_SECTION:-false}; then
     [[ "$exit_status" -eq 0 ]] &&
       printf "%s (${GREEN}done${RESET})\n" "$(_log 'SUCCESS' "$taskname")" >&2 ||
@@ -247,9 +276,8 @@ run_foreground_task() {
 
   _task_create # stops execution until task can start
   debug "task start '$TASK_NAME'"
-
-  _task_main "$@"
-  exit_status=$?
+  exit_status=0
+  _task_main "$@" || exit_status=$?
   _task_remove
   _log_task_done "$TASK_NAME" $exit_status
 
@@ -265,20 +293,14 @@ run_background_task() {
   _task_create # stops execution until task can start
   (
     debug "task start '$TASK_NAME'"
-    _task_main "$@"
-    exit_status=$?
+    exit_status=0
+    _task_main "$@" || exit_status=$?
     _task_remove
     _log_task_done "$TASK_NAME" $exit_status
     return $exit_status
   ) &
 
   unset TASK_NAME
-}
-
-check_task_status() {
-  local task=$1
-  [[ -f "$FAILED_TASKS_LIST" ]] || return 0
-  grep --quiet --extended-regexp "^$task$" "$FAILED_TASKS_LIST" && return 1 || return 0
 }
 
 # number of times to verify that there are 0 tasks running to make sure that no more are being spawned

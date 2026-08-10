@@ -363,6 +363,11 @@ prefix_output() {
   stdbuf -oL sed "s/^/$1/" </dev/stdin
 }
 
+print_divider() {
+  [[ $# -eq 1 ]]
+  printf "\n${BOLD}-=#${RESET} ${CYAN}${1}${RESET} ${BOLD}#=-${RESET}\n"
+}
+
 # set exit status in $exit_status
 wait_safe() {
   [[ $# -ge 1 ]]
@@ -383,6 +388,21 @@ parse_package() {
   [[ "$1" =~ ^(.+)@(.+)$ ]] && {
     parsed_package=${BASH_REMATCH[1]}
     parsed_manager=${BASH_REMATCH[2]}
+  }
+}
+
+make_task_name() {
+  [[ $# -eq 2 ]]
+  local verb="$1" target="$2"
+  echo "$verb[$target]"
+}
+
+# writes to parsed_task_verb and parsed_task_target
+parse_task_name() {
+  [[ $# -eq 1 ]]
+  [[ "$1" =~ ^(.+)\[(.+)\]$ ]] && {
+    parsed_task_verb=${BASH_REMATCH[1]}
+    parsed_task_target=${BASH_REMATCH[2]}
   }
 }
 

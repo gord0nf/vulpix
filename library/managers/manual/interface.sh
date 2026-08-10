@@ -236,8 +236,7 @@ install_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
     package_is_supported "$package" || fatal "not supported '$package', SHOULD NOT GET HERE"
-    run_background_task "install $package@manual" _install_package "$package" ||
-      warn "package install failed for '$package'"
+    run_background_task "$(make_task_name 'install' "$package@manual")" _install_package "$package"
   done
 }
 
@@ -245,8 +244,7 @@ uninstall_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
     package_is_supported "$package" || fatal "not supported '$package', SHOULD NOT GET HERE"
-    run_background_task "uninstall $package@manual" _uninstall_package "$package" ||
-      warn "package uninstall failed for '$package'"
+    run_background_task "$(make_task_name 'uninstall' "$package@manual")" _uninstall_package "$package"
   done
 }
 
@@ -254,8 +252,7 @@ update_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
     package_is_supported "$package" || fatal "package not supported '$package'. SHOULD NOT GET HERE"
-    run_background_task "update $package@manual" _update_package "$package" ||
-      warn "package update failed for '$package'"
+    run_background_task "$(make_task_name 'update' "$package@manual")" _update_package "$package"
   done
 }
 
@@ -263,7 +260,6 @@ reinstall_packages() {
   local -n packages=$1
   for package in "${packages[@]}"; do
     package_is_supported "$package" || fatal "package not supported '$package'. SHOULD NOT GET HERE"
-    run_background_task "reinstall $package@manual" _reinstall_package "$package" ||
-      warn "package reinstall failed for '$package'"
+    run_background_task "$(make_task_name 'reinstall' "$package@manual")" _reinstall_package "$package"
   done
 }
