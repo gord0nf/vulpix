@@ -414,6 +414,13 @@ package_management_for_manager() {
 	debug "to_update: ${to_update[@]}"
 	debug "to_uninstall: ${to_uninstall[@]}"
 
+	if [[ "${#to_uninstall[@]}" -ge "$NO_AUTO_UNINSTALL_THRESHOLD" ]]; then
+		warn "manager wants to uninstall ${#to_uninstall[@]} packages"
+		err "number of packages to uninstall tripped NO_AUTO_UNINSTALL_THRESHOLD ($NO_AUTO_UNINSTALL_THRESHOLD)"
+		info "you can change NO_AUTO_UNINSTALL_THRESHOLD using '.no_auto_uninstall_threshold' in your blueprint"
+		fatal 'manager uninstall not applied for safety'
+	fi
+
 	# apply scope
 	debug 'applying scope'
 	to_install_tmp=() to_update_tmp=()

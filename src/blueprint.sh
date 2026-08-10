@@ -44,6 +44,7 @@ _load_settings_from_blueprint() {
   export MAX_PROCESSES=${MAX_PROCESSES:-5}
   export OVERRIDE_TASK_SECTION=${OVERRIDE_TASK_SECTION:-}
   export TASK_SECTION_FOOTER=${TASK_SECTION_FOOTER:-} # true "default" is defined in begin_task_section()
+  export NO_AUTO_UNINSTALL_THRESHOLD=${NO_AUTO_UNINSTALL_THRESHOLD:-10}
   export APT_MODE=${APT_MODE:-safe}
 
   declare -A SETTINGS=(
@@ -51,6 +52,7 @@ _load_settings_from_blueprint() {
     [MAX_PROCESSES]='.max_bg_processes'
     [OVERRIDE_TASK_SECTION]='.enable_task_sections'
     [TASK_SECTION_FOOTER]='.tasks_section_footer_height'
+    [NO_AUTO_UNINSTALL_THRESHOLD]='.no_auto_uninstall_threshold'
     [APT_MODE]='.apt_mode'
   )
 
