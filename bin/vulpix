@@ -571,8 +571,14 @@ if $config; then
 	debug "to_config: ${to_config[@]}"
 
 	begin_task_section 'package configuration' || true
-	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
+	(configure_packages to_config) || exit_status=$? # start in a subshell so config scripts don't clutter env
 	end_task_section
+
+	case $exit_status in
+	0) ;;
+	2) warn 'no config scripts to run' ;;
+	*) fatal 'config failed' ;;
+	esac
 
 	# print config tasks that failed
 	get_failed_tasks -E '^config' || true
