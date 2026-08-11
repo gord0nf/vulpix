@@ -22,7 +22,7 @@ raw_logs_to_logs() {
 
 get_latest_github_tag() {
   [[ $# -eq 1 ]]
-  local tag=$(
+  tag=$(
     curl -L --fail -s "https://api.github.com/repos/$1/releases/latest" |
       sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
   ) || return 1

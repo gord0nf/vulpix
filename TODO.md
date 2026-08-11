@@ -2,8 +2,6 @@
 
 - v1.1
     - add install scripts for manual manager:
-        - bash
-        - git
         - golang
         - gradle
         - java
