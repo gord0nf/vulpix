@@ -125,7 +125,7 @@ _reprint_footer() {
     elif ((i + 1 == TASK_SECTION_FOOTER && i + 1 < ${#running_tasks[@]})); then
       printf '...'
     elif ((i < "${#running_tasks[@]}")); then
-      printf "${running_tasks[$i]} (${YELLOW}running${RESET})"
+      printf "%s (${YELLOW}running${RESET})" "${running_tasks[$i]}"
     fi
     printf "$(tput el)\n"
   done

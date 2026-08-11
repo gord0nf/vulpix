@@ -55,7 +55,7 @@ _run_config_script() {
   local script_name=$(convert_path_if_needed --unix "$(
     realpath --relative-to "$CONFIG_SCRIPTS" "$script"
   )")
-  local task_name=$(make_task_name 'config' "${script_name//\//@}")
+  local task_name=$(make_task_name 'config' "$script_name")
   case $script in
     *.sh) run_background_task "$task_name" source "$script" ;;
     *.ps1) run_background_task "$task_name" powershell "$script" ;;

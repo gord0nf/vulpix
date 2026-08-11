@@ -404,7 +404,7 @@ parse_package() {
 make_task_name() {
   [[ $# -eq 2 ]]
   local verb="$1" target="$2"
-  echo "$verb[$target]"
+  echo "$verb[${target//\//%}]"
 }
 
 # writes to parsed_task_verb and parsed_task_target
