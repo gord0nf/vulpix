@@ -5,8 +5,9 @@
 
 $ErrorActionPreference = 'Stop'
 
-$VULPIX_REPO = 'gord0nf/vulpix'
-$VULPIX_REPO_RAW = "https://raw.githubusercontent.com/$VULPIX_REPO/main"
+if (-not $env:VULPIX_REPO) { $env:VULPIX_REPO = 'gord0nf/vulpix' }
+if (-not $env:VULPIX_BRANCH) { $env:VULPIX_BRANCH = 'main' }
+$VULPIX_REPO_RAW = "https://raw.githubusercontent.com/$env:VULPIX_REPO/refs/heads/$env:VULPIX_BRANCH"
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
   Write-Error 'Only for execution by Windows PowerShell on a Windows machine'
@@ -25,9 +26,10 @@ if (Test-Admin) {
   $MANUAL_ROOT = "$env:LOCALAPPDATA/vulpix/manual"
 }
 
-function Bootstrap-Package() {
-  param ([string]$Package)
-  $script = Invoke-WebRequest -Uri "$VULPIX_REPO_RAW/library/packages/$Package/manual.bootstrap.ps1"
+function Bootstrap-Package($Package) {
+  Write-Host "INFO: downloading '$Package' bootstrap script"
+  $script = Invoke-WebRequest -UseBasicParsing `
+    -Uri "$VULPIX_REPO_RAW/library/packages/$Package/manual.bootstrap.ps1"
   $installDir = "$MANUAL_ROOT\packages\$Package"
 
   $binDirs = & ([scriptblock]::Create($script.Content)) -InstallDir "$installDir"
@@ -51,5 +53,13 @@ if (-not (Get-Command 'bash' -ErrorAction SilentlyContinue)) {
   }
 }
 
-$bootstrapScript = (Invoke-WebRequest "$VULPIX_REPO_RAW/bootstrap.sh").Content
-bash --command "$bootstrapScript"
+Write-Host 'INFO: downloading bootstrap.sh'
+$bootstrapScript = New-TemporaryFile | Rename-Item -NewName { $_.Name -replace '\.tmp$', '.sh' } -PassThru   
+Invoke-WebRequest -UseBasicParsing -OutFile $bootstrapScript "$VULPIX_REPO_RAW/bootstrap.sh" 
+
+Write-Host 'INFO: passing execution to bootstrap.sh'
+bash "$bootstrapScript"
+$status = $?
+
+Remove-Item -Force $bootstrapScript
+return $status

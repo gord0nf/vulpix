@@ -93,7 +93,7 @@ download_source() {
 [[ -v VULPIX_INSTALL ]] || fatal "devs didn't define VULPIX_INSTALL in utils.sh"
 
 # determine whether vulpix is already install (if so, we'll basically be updating by bootstrapping)
-debug "VULPIX=$VULPIX"
+debug "VULPIX=${VULPIX:-}"
 if [[ -z "$OVERRIDE_INSTALL" && -v VULPIX ]]; then
   if [[ -d "$VULPIX" ]]; then
     info 'bootstrapping/updating existing installation at $VULPIX'

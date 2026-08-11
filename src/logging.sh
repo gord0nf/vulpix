@@ -2,7 +2,7 @@
 
 [[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
 
-mkdir -p "$VULPIX_LOG"
+mkdir -p "$VULPIX_LOG" "$VULPIX_TMP"
 
 # clear logs on init
 clear_logs() {

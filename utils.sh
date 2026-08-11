@@ -7,6 +7,8 @@ set -euo pipefail
 set -E
 shopt -s nullglob globstar inherit_errexit
 
+MSYSTEM=${MSYSTEM:-} # bash git-for-windows errs if not defined...
+
 # functions ---------------------------------------------------------------------------------------
 
 # basic default logging
@@ -20,7 +22,7 @@ fatal() { echo "FATAL: $*" >&2 && exit 1; }
 
 verify() {
   [[ $# -eq 1 ]]
-  read -p "$1 (y/n): " -n 1 -r REPLY
+  read -p "$1 (y/n): " -r REPLY
   echo # new line
   case $REPLY in
     [yY]*) return 0 ;;
@@ -427,7 +429,7 @@ get_arch
 
 # check for windows env vars
 if [[ $OS == windows ]]; then
-  for var in ProgramFiles ProgramData APPDATA LOCALAPPDATA TMP; do
+  for var in PROGRAMFILES ProgramData APPDATA LOCALAPPDATA TMP; do
     [[ -v "$var" ]] || fatal "windows environmental var is required: $var"
   done
 fi
@@ -439,7 +441,7 @@ if ! [[ -v VULPIX_INSTALL ]]; then
   else
     if is_root; then
       [[ $OS == windows ]] &&
-        VULPIX_INSTALL="$ProgramFiles/vulpix" ||
+        VULPIX_INSTALL="$PROGRAMFILES/vulpix" ||
         VULPIX_INSTALL="/opt/vulpix"
     else
       [[ $OS == windows ]] &&
