@@ -183,9 +183,11 @@ replay_subcommand() {
 	1) log_idx=0 ;;
 	*)
 		local log_choices=()
+		get_failed_tasks
 		for log in "${logs[@]}"; do
 			local fancy_log="'$CYAN$log$RESET'"
-			! check_task_failed "$(basename -s .log "$log")" || fancy_log+=" (${RED}failed${RESET})"
+			local task="$(basename -s .log "$log")"
+			! array_has_element failed_tasks "$task" || fancy_log+=" (${RED}failed${RESET})"
 			log_choices+=("$fancy_log")
 		done
 		get_choice_idx 'select log to replay: ' log_choices >&3 || fatal 'aborted'
@@ -573,7 +575,7 @@ if $config; then
 	end_task_section
 
 	# print config tasks that failed
-	get_failed_tasks '^config' || true
+	get_failed_tasks -E '^config' || true
 	if [[ "${#failed_tasks[@]}" -gt 0 ]]; then
 		warn 'some config tasks failed'
 		warn 'run `vulpix replay <task>` to check task logs'

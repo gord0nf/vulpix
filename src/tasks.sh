@@ -201,13 +201,11 @@ mark_task_failed() {
 
 # writes failed_tasks
 get_failed_tasks() {
-  [[ $# -eq 0 || $# -eq 1 ]]
   failed_tasks=()
   [[ -f "$FAILED_TASKS_LIST" ]] || return
-  if [[ $# -eq 1 ]]; then
-    local regex=$1
+  if [[ $# -gt 0 ]]; then
     load_array_by_line_from_command failed_tasks \
-      grep --extended-regexp "$regex" "$FAILED_TASKS_LIST"
+      grep "$@" "$FAILED_TASKS_LIST"
   else
     load_array_by_line failed_tasks <"$FAILED_TASKS_LIST"
   fi
@@ -216,7 +214,7 @@ get_failed_tasks() {
 check_task_failed() {
   [[ $# -eq 1 ]]
   [[ -f "$FAILED_TASKS_LIST" ]] || return 1
-  get_failed_tasks "^$1$" || return 1
+  get_failed_tasks -xF "$1" || return 1
   [[ "${#failed_tasks[@]}" -ne 0 ]]
 }
 

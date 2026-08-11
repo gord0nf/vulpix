@@ -36,13 +36,14 @@ prompt() {
 get_choice_idx() {
   [[ $# -eq 2 ]]
   local -n choices=$2
-  local prompt=$1 n_choices="${#choices[@]}"
+  local prompt=$1 n_choices=$((${#choices[@]} - 1))
+  local n_digits=${#n_choices}
   echo
-  for ((i = 0; i < n_choices; i++)); do
-    printf "  $i) ${choices[$i]}\n"
+  for ((i = 0; i <= n_choices; i++)); do
+    printf "  %0${n_digits}d) %b\n" "$i" "${choices[$i]}"
   done
   echo
-  read -p "$prompt" -n "${#n_choices}" -r REPLY
+  read -p "$prompt" -n "$n_digits" -r REPLY
   echo
   [[ "$REPLY" =~ ^[0-9]+$ ]] && choice_idx="$REPLY"
 }

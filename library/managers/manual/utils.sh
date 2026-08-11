@@ -25,8 +25,11 @@ get_latest_github_tag() {
   local tag=$(
     curl -L --fail -s "https://api.github.com/repos/$1/releases/latest" |
       sed -nE 's/^.*"tag_name"\s*:\s*"([^"]+)"\s*,?\s*$/\1/p'
-  )
-  [[ -n "$tag" ]] && echo "$tag"
+  ) || return 1
+  [[ -n "$tag" ]] && echo "$tag" || {
+    err 'empty version tag'
+    return 1
+  }
 }
 
 transform_var() {
