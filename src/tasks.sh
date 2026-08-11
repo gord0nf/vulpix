@@ -3,7 +3,11 @@
 # a task is a process that has seperate logging and is run in a forked bash subprocess (optionally
 # in parallel).
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+source_script "$SCRIPT_DIR/mutex.sh"
+
 [[ -v VULPIX_LOG ]] || fatal 'tasks.sh requires VULPIX_LOG'
+[[ -v VULPIX_TMP ]] || fatal 'tasks.sh requires VULPIX_TMP'
 [[ -v MAX_PROCESSES ]] || fatal 'tasks.sh requires MAX_PROCESSES'
 [[ "$MAX_PROCESSES" =~ ^[0-9]+$ ]] || fatal 'invalid MAX_PROCESSES'
 [[ "$MAX_PROCESSES" -ge 1 ]] || fatal 'MAX_PROCESSES must at least be 1'
@@ -19,24 +23,14 @@ fi
 # source of truth between processes for the tasks that are running --------------------------------
 
 TASK_FILE="$VULPIX_TMP/running_tasks.list"
-TASK_LOCK_TIMEOUT=30 # seconds
+TASK_MUTEX='TASKS'
 
 # clean on init
 mkdir -p "$VULPIX_TMP"
 echo >"$TASK_FILE"
 
-_lock_acquire() {
-  exec {LOCKFD}<"$TASK_FILE" || fatal '_lock_acquire: could not establish lock'
-  flock -x -w "$TASK_LOCK_TIMEOUT" $LOCKFD || fatal '_lock_acquire: failed'
-}
-
-_lock_release() {
-  test "$LOCKFD" || fatal '_lock_release: file not locked'
-  flock -u $LOCKFD && exec {LOCKFD}>&- && unset LOCKFD || fatal '_lock_release: failed'
-}
-
 _load_running_tasks() {
-  _lock_acquire
+  mutex_lock $TASK_MUTEX
   load_array_by_line running_tasks <"$TASK_FILE"
   debug "loaded running tasks: ${running_tasks[@]}"
 }
@@ -44,19 +38,17 @@ _load_running_tasks() {
 _set_running_tasks() {
   debug "setting running tasks: ${running_tasks[@]}"
   printf '%s\n' "${running_tasks[@]}" >"$TASK_FILE"
-  _lock_release
+  mutex_unlock $TASK_MUTEX
 }
 
 # stdout/err while rendering ui to prevent conflicts ----------------------------------------------
 
-RENDER_LOCK="$VULPIX_TMP/render.lock"
+RENDER_MUTEX='RENDER'
 
 render() {
-  exec {fd}>"$RENDER_LOCK"
-  flock -x "$fd" || fatal 'render lock failed'
+  mutex_lock $RENDER_MUTEX
   "$@"
-  flock -u "$fd"
-  exec {fd}>&-
+  mutex_unlock $RENDER_MUTEX
 }
 
 # got to prevent normal logging while jumping around the terminal to render ui
@@ -74,11 +66,7 @@ open_render_output_nonconflict() {
   exec 2> >(_buffer_until_not_rendering >&4)
 }
 close_render_output_nonconflict() {
-  # wait until lock is free
-  while ! flock -w 0 -n "$RENDER_LOCK" true 2>/dev/null; do
-    sleep 1
-  done
-
+  mutex_await_free $RENDER_MUTEX
   exec 1>&3
   exec 2>&4
   exec 3>&-
@@ -241,7 +229,7 @@ _task_create() {
   while true; do
     _load_running_tasks
     if [[ "${#running_tasks[@]}" -lt "$MAX_PROCESSES" ]]; then break; fi
-    _lock_release
+    mutex_unlock $TASK_MUTEX
     sleep $TASK_POLL_PERIOD
   done
 
@@ -314,7 +302,7 @@ await_tasks() {
   while true; do
     _load_running_tasks
     n="${#running_tasks[@]}"
-    _lock_release
+    mutex_unlock $TASK_MUTEX
     if [[ "$n" -eq 0 ]]; then break; fi
     sleep $TASK_POLL_PERIOD
   done
