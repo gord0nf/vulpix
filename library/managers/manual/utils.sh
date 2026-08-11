@@ -60,6 +60,7 @@ download() {
   local url="$1" tmp=$(mktemp)
   curl --ssl-revoke-best-effort --fail -L -o "$tmp" "$url"
   if [[ $? -ne 0 ]]; then
+    debug "download failed: $url"
     err "download .../$(basename "$url") failed"
     rm -f "$tmp"
     return 1
