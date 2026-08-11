@@ -294,10 +294,33 @@ source_script "$VULPIX/src/blueprint.sh"
 source_script "$VULPIX/src/library.sh"
 source_script "$VULPIX/src/tasks.sh"
 
-# no SCOPE_PACKAGES implies no scope (all backages)
 if [[ "${#SCOPE_PACKAGES[@]}" -eq 0 ]]; then
+
+	# no SCOPE_PACKAGES implies no scope (all backages)
 	SCOPE_PACKAGES=("${BLUEPRINT_PACKAGES[@]}")
 	debug "expanded SCOPE_PACKAGES to: ${SCOPE_PACKAGES[@]}"
+
+else
+
+	# look at SCOPE_PACKAGES and prompt to add to blueprint if not in BLUEPRINT_PACKAGES
+	floating_scope_packages=()
+	for package in "${SCOPE_PACKAGES[@]}"; do
+		array_has_element BLUEPRINT_PACKAGES "$package" || floating_scope_packages+=("$package")
+	done
+	if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
+		debug "floating_scope_packages: ${floating_scope_packages[@]}"
+		warn 'some packages were provided in scope but are not in blueprint'
+		echo 'floating tasks:' >&3
+		printf '  - %s\n' "${floating_scope_packages[@]}" >&3
+		echo >&3
+		verify "Add all of them to blueprint to continue?" >&3 ||
+			fatal 'aborted... packages must be defined in blueprint'
+		echo >&3
+
+		yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
+		BLUEPRINT_PACKAGES+=("${floating_scope_packages[@]}")
+	fi
+
 fi
 
 managers=()
@@ -349,22 +372,6 @@ for manager in "${managers[@]}"; do
 		done
 	) || fatal 'unsupported manager/package(s) in scope or blueprint'
 done
-
-# look at scope_packages and prompt to add if not in blueprint
-floating_scope_packages=()
-for package in "${SCOPE_PACKAGES[@]}"; do
-	array_has_element BLUEPRINT_PACKAGES "$package" || floating_scope_packages+=("$package")
-done
-if [[ "${#floating_scope_packages[@]}" -gt 0 ]]; then
-	debug "floating_scope_packages: ${floating_scope_packages[@]}"
-	echo "The following packages were provided but are not in blueprint:"
-	printf '    %s\n' "${floating_scope_packages[@]}"
-	echo
-	verify "Add all of them to blueprint to continue?" ||
-		fatal 'aborted... packages must be defined in blueprint'
-
-	yq_set_array '.packages' floating_scope_packages "$BLUEPRINT" --append
-fi
 
 # package management ------------------------------------------------------------------------------
 
