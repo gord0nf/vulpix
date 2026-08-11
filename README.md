@@ -91,6 +91,7 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
     options:
 
       -h, --help        print help
+      -v, --version     print version tag
       -b, --blueprint   specify blueprint yaml path, otherwise searches default
                         locations
 
