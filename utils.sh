@@ -99,7 +99,7 @@ is_git_repo() {
 }
 
 convert_path_if_needed() {
-  [[ $# -eq 1 ]]
+  [[ $# -eq 2 ]]
   local target_switch=$1
   local path=$2
   if command_exists wslpath; then

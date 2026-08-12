@@ -62,13 +62,12 @@ _run_config_script() {
   esac
 }
 
-# returns 0 if success, 1 if failed, 2 if nothing to do
 configure_packages() {
   local -n packages=$1
 
   _get_all_config_scripts packages
   debug "n config scripts: ${#scripts[@]}"
-  [[ "${#scripts[@]}" -gt 0 ]] || return 2
+  [[ "${#scripts[@]}" -gt 0 ]] || return
 
   _sort_config_scripts_by_round # load into arrays like script_round_0, script_round_1, ...
 

@@ -187,6 +187,18 @@ mark_task_failed() {
   echo "$1" >>"$FAILED_TASKS_LIST"
 }
 
+# writes all_tasks
+get_all_tasks() {
+  all_tasks=()
+  [[ -d "$VULPIX_LOG/tasks" ]] || return
+  for log in "$VULPIX_LOG/tasks/"*.log; do
+    local task=$(basename -s .log "$log")
+    if [[ $# -eq 0 ]] || echo "$task" | grep "$@" >/dev/null; then
+      all_tasks+=("$task")
+    fi
+  done
+}
+
 # writes failed_tasks
 get_failed_tasks() {
   failed_tasks=()

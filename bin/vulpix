@@ -477,6 +477,17 @@ package_management_for_manager() {
 	debug "finished package management"
 }
 
+print_task_summary() {
+	if [[ ${#TASK_SUMMARY[@]} -gt 0 ]]; then
+		echo 'summary:' >&3
+		for task in "${!TASK_SUMMARY[@]}"; do
+			local note=${TASK_SUMMARY[$task]}
+			printf "  - %s%b\n" "$task" "${note:+ ($note)}" >&3
+		done
+		echo >&3
+	fi
+}
+
 failed_packages=()
 
 if $clean || $install; then
@@ -508,13 +519,21 @@ if $clean || $install; then
 
 	end_task_section
 
-	# print managment tasks that failed
+	# print managment tasks summary
+	debug 'printing summary'
+	get_all_tasks -P '^(?!can_use)' || true
 	get_failed_tasks || true # no filter since no other tasks should fail before package managment
+	declare -A TASK_SUMMARY=()
+	for task in "${all_tasks[@]}"; do
+		array_has_element failed_tasks "$task" &&
+			TASK_SUMMARY[$task]="${RED}failed${RESET}" ||
+			TASK_SUMMARY[$task]=
+	done
+	print_task_summary
+
 	if [[ "${#failed_tasks[@]}" -gt 0 ]]; then
 		warn 'some package tasks failed'
 		warn 'run `vulpix replay <task>` to check task logs'
-		echo 'summary:' >&3
-		printf "  - %s (${RED}failed${RESET})\n" "${failed_tasks[@]}" >&3
 	else
 		success 'all package tasks successful'
 	fi
@@ -551,9 +570,6 @@ if $config; then
 	# make note that failed managed packages will be skipped
 	if [[ "${#failed_packages[@]}" -gt 0 ]]; then
 		warn 'some package management tasks failed, so the packages will be skipped'
-		echo 'skipping config of the following:' >&3
-		printf "  - %s (${YELLOW}skipped${RESET})\n" "${failed_packages[@]}" >&3
-		echo >&3
 	fi
 
 	to_config=('global')
@@ -571,24 +587,34 @@ if $config; then
 	debug "to_config: ${to_config[@]}"
 
 	begin_task_section 'package configuration' || true
-	(configure_packages to_config) || exit_status=$? # start in a subshell so config scripts don't clutter env
+	(configure_packages to_config) # start in a subshell so config scripts don't clutter env
 	end_task_section
 
-	case $exit_status in
-	0) ;;
-	2) warn 'no config scripts to run' ;;
-	*) fatal 'config failed' ;;
-	esac
-
-	# print config tasks that failed
+	get_all_tasks -E '^config' || true
 	get_failed_tasks -E '^config' || true
-	if [[ "${#failed_tasks[@]}" -gt 0 ]]; then
-		warn 'some config tasks failed'
-		warn 'run `vulpix replay <task>` to check task logs'
-		echo 'summary:' >&3
-		printf "  - %s (${RED}failed${RESET})\n" "${failed_tasks[@]}" >&3
+	declare -A TASK_SUMMARY=()
+	for package in "${to_config[@]}"; do
+		if [[ " ${failed_tasks[@]} " =~ " config[$package.d%.*] " ]]; then
+			TASK_SUMMARY[$package]="${RED}some scripts failed${RESET}"
+		elif [[ " ${all_tasks[@]} " =~ " config[$package"\.d.*"] " ]]; then
+			TASK_SUMMARY[$package]=
+		fi
+	done
+	for skipped in "${failed_packages[@]}"; do
+		TASK_SUMMARY[$skipped]="${YELLOW}skipped${RESET}"
+	done
+	print_task_summary
+
+	# print config tasks overall status
+	if [[ ${#all_tasks[@]} -gt 0 ]]; then
+		if [[ ${#failed_tasks[@]} -gt 0 ]]; then
+			warn 'some config tasks failed'
+			warn 'run `vulpix replay <task>` to check task logs'
+		else
+			success 'all config tasks successful'
+		fi
 	else
-		success 'all config tasks successful'
+		warn 'no tasks were run'
 	fi
 
 	debug 'config stuff end'
