@@ -58,8 +58,8 @@ function Get-InstalledVersion() {
 function Get-DownloadUrl($Version) {
   if ($Version -match "^v(\d+\.\d+\.\d+)\.windows.*$") {
     $versionNumber = $Matches[1]
-    if ($Version -like '*.2') {
-      $versionNumber += '.2'
+    if ($Version -match '\.(\d+)$') {
+      $versionNumber += '.' + $Matches[1]
     }
     $arch = (Get-CimInstance Win32_OperatingSystem).OSArchitecture
     return "https://github.com/git-for-windows/git/releases/download/$Version/Git-$versionNumber-$arch.exe"
@@ -91,10 +91,10 @@ if ($Update) {
 }
 
 if ($Install) {
-  Remove-Item -Force -Recursive $InstallDir
+  if (Test-Path $InstallDir) { Remove-Item -Force -Recurse $InstallDir }
   $url = Get-DownloadUrl $LatestVersion
 
-  Write-Host 'INFO: downloading Git for Windows'
+  Write-Host 'INFO: downloading Git for Windows installer'
   $tmp = New-TemporaryFile
   Move-Item $tmp "$tmp.exe"
   $tmp = "$tmp.exe"
@@ -104,7 +104,7 @@ if ($Install) {
   $configFile = New-TemporaryFile
   Set-Content -Value $GitConfigInf -Path "$configFile"
 
-  Write-Host 'INFO: installing Git for Windows'
+  Write-Host 'INFO: running Git for Windows installer'
   Start-Process -Wait -FilePath "$tmp" -ArgumentList @(
     '/SILENT',
     '/NORESTART', 
