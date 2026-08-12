@@ -72,9 +72,9 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
 
 > [!NOTE]
 >
-> if bootstrap.ps1 cannot find bash, it will install it via
-> [Git for Windows](https://git-scm.com/install/windows) (the main alternative is WSL, but that's
-> less efficient so it requires explicit setup).
+> if bootstrap.ps1 cannot find bash, it will install it via [MSYS2](https://www.msys2.org/).
+> alternatives are WSL (but it usually requries admin and is slower) and MinGW/Git Bash (but it does
+> not support some bash features that this repo uses).
 
 > [!WARNING]
 >
@@ -123,7 +123,7 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
                               those packages. If 'all' is passed, all packages'
                               configs are ran.
 
-      reinstall ...packages    Uninstalls then reinstalls specified packages (or all
+      reinstall ...packages   Uninstalls then reinstalls specified packages (or all
                               packages if none specified). Prompts to add to
                               blueprint if specified packages isn't there.
 

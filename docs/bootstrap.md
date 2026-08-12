@@ -30,5 +30,5 @@ for linux, it's up to you or your os to install bash, because its often intertwi
 
 there exists `bootstrap.ps1`, which is a wrapper around `bootstrap.sh`. it:
 
-1. checks for bash and not found, installs it via Git for Windows (Git Bash)
+1. checks for bash and not found, installs it through MSYS2
 2. downloads and runs `bootstrap.sh`

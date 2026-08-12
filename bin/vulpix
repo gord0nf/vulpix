@@ -81,7 +81,7 @@ subcommands:
                           those packages. If 'all' is passed, all packages'
                           configs are ran.
 
-  reinstall ...packages    Uninstalls then reinstalls specified packages (or all
+  reinstall ...packages   Uninstalls then reinstalls specified packages (or all
                           packages if none specified). Prompts to add to
                           blueprint if specified packages isn't there.
 
