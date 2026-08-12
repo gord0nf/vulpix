@@ -87,3 +87,12 @@ machine. then, if you require some packages for your user, you can defines those
 [assert](#assert) manager.
 
 see [here](../library/managers/apt/README.md) for implementation details.
+
+### pacman
+
+    name:           apt
+    supports_async: true (natively)
+
+abstraction over the [pacman package manager](https://wiki.archlinux.org/title/Pacman), which is
+important for both Arch Linux (obviously) as well as MSYS2 on windows. handles
+installing/updating/removing pacman packages.
