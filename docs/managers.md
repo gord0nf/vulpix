@@ -5,12 +5,13 @@ a "manager" is a package manager that vulpix supports abstraction over.
 each manager should have a script in `library/managers/` that exports functions (interface is
 defined in [the README](../library/managers/README.md))
 
-## beyond package management
+## special managers
 
 there are some special managers that are functional to vulpix features beyond package managment:
 
 - `manual`: used during bootstrap (see
   [here](../library/managers/manual/README.md#significance-during-bootstrap))
+- `assert`: shell of a manager that simply trusts that the package is installed so config can be run
 
 ## manager list
 
@@ -23,6 +24,31 @@ custom package manager that is manually implemented by vulpix (hence "manual" fr
 perspective, and from your perspective too if you peek at the code or contribute).
 
 see [here](../library/managers/manual/README.md) for implementation details.
+
+### assert
+
+    name:           manual
+    supports_async: true
+
+assert isn't really a package manager. all it does is check if the package is already installed, and
+if it is, it succeeds and continues to config (or whatever else). this is useful for many reasons,
+but i can think of two right now:
+
+- if a package comes preinstalled on your os (like bash on linux), you can assert its existence in
+  your portable blueprint
+- if you want a tool available at the user level blueprint, but it needs to be installed system-wide
+  (for example, most apt use cases), you can just "assert" in your user blueprint and defer
+  installation to your system-wide/root blueprint, however it decides to manage it.
+
+by default, the manager checks if it exists and if not, fails the installation task. there are some
+presets for checking the existence of common packages, else it just checks if the name of the
+package is a valid command. you can bypass these checks (see the tip below).
+
+> [!TIP]
+>
+> the assert manager supports the special package name syntax `package_name!` (the whole id would be
+> like `bash!@assert`). in this case, literally no checks are preformed (it's just "trust me bro,
+> its installed").
 
 ### apt
 
