@@ -4,7 +4,8 @@
 # also provides default logs to stdout/stderr, which can be overridden (such as the case with cli logging)
 
 set -euo pipefail
-shopt -s nullglob globstar
+set -E
+shopt -s nullglob globstar inherit_errexit
 
 # functions ---------------------------------------------------------------------------------------
 
@@ -254,8 +255,9 @@ yq_set_array() {
   local op='='
   if [[ $# -gt 0 ]] && [[ "$1" == '--append' ]]; then op='+=' && shift; fi
 
+  local array_values=
   if [[ "${#array[@]}" -gt 0 ]]; then
-    local array_values="\"$(join_by '","' "${array[@]}")\""
+    array_values="\"$(join_by '","' "${array[@]}")\""
   fi
   if file_is_empty; then
     echo '{}' >"$file" # python yq doesn't handle empty files well

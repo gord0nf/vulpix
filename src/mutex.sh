@@ -11,15 +11,22 @@ mkdir -p "$MUTEX_DIR"
 mutex_lock() {
   [[ $# -eq 1 ]]
   local mutex_name=$1 mutex_file="$MUTEX_DIR/$1"
+  ! [[ -v "$mutex_name" ]] || fatal "_mutex_lock: file already locked ($mutex_name)"
   exec {LOCK_FD}>"$mutex_file" || fatal "_mutex_lock: could not establish lock ($mutex_file)"
   export "$mutex_name"="$LOCK_FD"
   flock -x -w "$LOCK_TIMEOUT" ${!mutex_name} || fatal "_lock_acquire: failed ($mutex_name)"
 }
 
+mutex_is_locked() {
+  [[ $# -eq 1 ]]
+  local mutex_name=$1
+  [[ -v "$mutex_name" ]]
+}
+
 mutex_unlock() {
   [[ $# -eq 1 ]]
   local mutex_name=$1
-  [[ -v "$mutex_name" ]] || fatal "_mutex_lock_release: file not locked ($mutex_name)"
+  [[ -v "$mutex_name" ]] || fatal "_mutex_unlock: file not locked ($mutex_name)"
   flock -u ${!mutex_name} &&
     eval "exec {$mutex_name}>&-" &&
     unset "$mutex_name" ||

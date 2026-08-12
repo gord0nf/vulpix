@@ -32,9 +32,49 @@ _get_bin_link_filename() {
   fi
 }
 
-_activate_package() {
+# status.yaml utils -------------------------------------------------------------------------------
+
+STATUS_MUTEX='MANUAL_STATUS_YAML'
+
+_package_is_installed() {
+  yq_has_key '.' "$1" "$STATUS"
+}
+
+_package_is_active() {
+  [[ "$(yq_safe -r '.'$1'.active' "$STATUS")" == 'true' ]]
+}
+
+_destroy_package_entry() {
+  mutex_is_locked $STATUS_MUTEX || fatal '_destroy_package_entry: status not locked'
   local package=$1
-  info "activating package '$package'"
+  info "destroying package entry '$package'"
+  yq_safe --in-place 'del(.'$package')' "$STATUS"
+}
+
+_activate_package_entry() {
+  mutex_is_locked $STATUS_MUTEX || fatal '_update_package_entry: status not locked'
+  local package=$1
+  info "activating package entry '$package'"
+  yq_safe --in-place '.'$package'.active = true' "$STATUS"
+  yq_safe --in-place '.'$package'.last_active = "'$(date +%Y-%m-%d)'"' "$STATUS"
+  if [[ $# -gt 1 ]]; then
+    local bin_paths=$2 # name of array var
+    yq_set_array '.'$package'.binaries' $bin_paths "$STATUS"
+  fi
+}
+
+_deactivate_package_entry() {
+  mutex_is_locked $STATUS_MUTEX || fatal '_update_package_entry: status not locked'
+  local package=$1
+  info "deactivating package entry '$package'"
+  yq_safe --in-place '.'$package'.active = false' "$STATUS"
+}
+
+_activate_package_binaries() {
+  mutex_is_locked $STATUS_MUTEX || fatal '_activate_package_binaries: status not locked'
+
+  local package=$1
+  info "activating '$package' binaries"
   local binaries=()
   yq_get_array binaries '.'$package'.binaries[]' "$STATUS" || return 1
 
@@ -47,6 +87,7 @@ _activate_package() {
     [[ -n "$bin_link" ]] || continue
     bin_link="$tmpbin/$bin_link"
     rm -fr "$bin_link"
+    debug "bin link: '$bin_link' -> '$bin_path'"
     [[ -d "$bin_path" ]] &&
       dir_link "$bin_link" "$bin_path" ||
       file_link "$bin_link" "$bin_path"
@@ -56,22 +97,14 @@ _activate_package() {
       return 1
     }
   done
-
-  {
-    yq_safe --in-place '.'$package'.active = true' "$STATUS" &&
-      yq_safe --in-place '.'$package'.last_active = "'$(date +%Y-%m-%d)'"' "$STATUS"
-  } || {
-    err "couldn't update entry in $STATUS"
-    atomic_change_abort "$BIN"
-    return 1
-  }
-
   atomic_change_apply "$BIN"
 }
 
-_deactivate_package() {
+_deactivate_package_binaries() {
+  mutex_is_locked $STATUS_MUTEX || fatal '_deactivate_package_binaries: status not locked'
+
   local package=$1
-  info "deactivating package '$package'"
+  info "deactivating '$package' binaries"
   local binaries=()
   yq_get_array binaries '.'$package'.binaries' "$STATUS"
 
@@ -91,66 +124,65 @@ _deactivate_package() {
       return 1
     }
   done
-
-  yq_safe --in-place '.'$package'.active = false' "$STATUS" || {
-    err "couldn't update entry in $STATUS"
-    atomic_change_abort "$BIN"
-    return 1
-  }
   atomic_change_apply "$BIN"
 }
 
-_install_update_package() {
+# install/uninstall/update/reinstall helpers ------------------------------------------------------
+
+# writes array of returned binary paths to $package_binaries
+_run_package_script() {
   local package=$1
-  info "installing/updating package '$1'"
-  local install_script=$(_get_install_script "$package")
-  local install_dir=$(_get_install_dir "$package")
-  local tmp_install_dir=$(atomic_change_start "$install_dir")
+  info "running script for package '$package'"
+  install_script=$(_get_install_script "$package")
+  install_dir=$(_get_install_dir "$package")
+  tmp_install_dir=$(atomic_change_start "$install_dir")
 
   # load_array_by_line_from_command runs install_cmd as subshell to fork bash context and capture output
   local install_cmd="source '$install_script' '$tmp_install_dir' || fatal 'install script failed'"
-  local bin_paths=()
-  load_array_by_line_from_command bin_paths \
+  package_binaries=()
+  load_array_by_line_from_command package_binaries \
     eval "$install_cmd" || {
     err "'$package' install failed. rolling back changes..."
     atomic_change_abort "$install_dir"
     return 1
   }
-
-  # add status.yaml entry
-  {
-    yq_safe --in-place '.'$package' = {"active": true, "last_active": "'$(date +%Y-%m-%d)'"}' "$STATUS" &&
-      yq_set_array '.'$package'.binaries' bin_paths "$STATUS"
-  } || {
-    err "'$package' add status entry failed. rolling back changes..."
-    atomic_change_abort "$install_dir"
-    return 1
-  }
-
   atomic_change_apply "$install_dir"
 }
 
 _destory_package() {
-  info "destroying package '$1'"
-  rm -fr "$(_get_install_dir "$1")"
-  yq_safe --in-place 'del(.'$1')' "$STATUS"
+  local package=$1
+  info "destroying package '$package'"
+  rm -fr "$(_get_install_dir "$package")"
+
+  mutex_lock $STATUS_MUTEX
+  _deactivate_package_binaries "$package" || return $?
+  _destroy_package_entry "$package" || return $?
+  mutex_unlock $STATUS_MUTEX
 }
 
 _install_package() {
   local package=$1
-  yq_has_key '.' "$package" "$STATUS" &&
+  package_binaries=
+  info "installing package '$package'"
+
+  _package_is_installed "$package" &&
     info "package already installed '$package'" ||
-    _install_update_package "$package"
-  [[ $? -eq 0 ]] || return 1
-  _activate_package "$package" # activate binaries
+    _run_package_script "$package" || return 1
+
+  mutex_lock $STATUS_MUTEX
+  _activate_package_entry "$package" ${package_binaries:+package_binaries} || return $?
+  _activate_package_binaries "$package" || return $?
+  mutex_unlock $STATUS_MUTEX
 }
 
 _uninstall_package() {
   local package=$1
-  local active=$(yq_safe -r '.'$package'.active' "$STATUS")
-  if [[ "$active" == 'true' ]]; then
-    info "deactivating '$package'"
-    _deactivate_package "$package"
+  info "uninstalling package '$package'"
+  if _package_is_active "$1"; then
+    mutex_lock $STATUS_MUTEX
+    _deactivate_package_entry || return $?
+    _deactivate_package_binaries "$package" || return $?
+    mutex_unlock $STATUS_MUTEX
   else
     info "'$package' not installed or already deactivated"
   fi
@@ -158,21 +190,28 @@ _uninstall_package() {
 
 _update_package() {
   local package=$1
-  yq_has_key '.' "$package" "$STATUS" || {
+  info "updating package '$package'"
+  _package_is_installed "$package" || {
     err "package '$package' is not installed, so can't update"
     return 1
   }
 
-  yq_safe --in-place 'del(.'$package')' "$STATUS" # remove status entry so _create_package can create it again
-  _install_update_package "$package" || return 1  # calling on an already installed package should update it
-  _activate_package "$package"
+  mutex_lock $STATUS_MUTEX
+  _destroy_package_entry "$package" || return $? # remove status entry so we can create it again
+  _run_package_script "$package" || return $?    # calling on an already installed package should update it
+  _activate_package_entry "$package" package_binaries || return $?
+  _activate_package_binaries "$package" || return $?
+  mutex_unlock $STATUS_MUTEX
 }
 
 _reinstall_package() {
   local package=$1
-  _destory_package "$package" || return 1
-  _install_package "$package"
+  info "reinstalling package '$package'"
+  _destory_package "$package" || return $?
+  _install_package "$package" || return $?
 }
+
+# main exports ------------------------------------------------------------------------------------
 
 can_use_manager() {
   for dep in "${DEPENDENCIES[@]}"; do
@@ -200,7 +239,10 @@ presetup() {
     local packages=()
     yq_get_array packages '. | select(.) | keys[]' "$STATUS" || fatal "invalid yaml at $STATUS"
     for pkg in "${packages[@]}"; do
-      package_is_supported "$pkg" || fatal "unsupported package '$pkg' at $STATUS"
+      if ! package_is_supported "$pkg"; then
+        warn "cleaning unsupported package '$pkg' at $STATUS"
+        yq_safe --in-place 'del(.'$pkg')' "$STATUS"
+      fi
     done
   else
     touch "$STATUS"
@@ -226,7 +268,6 @@ postsetup() {
 
 get_installed() {
   local -n installed=$1
-  # TODO: will this actually write to nameref?
   yq_get_array installed \
     '. | with_entries(select(.value.active == true)) | keys[]' \
     "$STATUS"
