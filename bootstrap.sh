@@ -71,7 +71,7 @@ bootstrap_package() {
 # step 1: install source --------------------------------------------------------------------------
 
 clone_source() {
-  git clone "$VULPIX_REPO_GIT" "$1"
+  git clone "$VULPIX_REPO_GIT" "$1" && git -C "$1" checkout "$VULPIX_BRANCH"
 }
 
 update_source() {
