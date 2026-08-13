@@ -5,8 +5,12 @@
 
 $ErrorActionPreference = 'Stop'
 
-if (-not $env:VULPIX_REPO) { $env:VULPIX_REPO = 'gord0nf/vulpix' }
-if (-not $env:VULPIX_BRANCH) { $env:VULPIX_BRANCH = 'main' }
+if (-not $env:VULPIX_REPO) {
+  $env:VULPIX_REPO = 'gord0nf/vulpix' 
+}
+if (-not $env:VULPIX_BRANCH) {
+  $env:VULPIX_BRANCH = 'main' 
+}
 $VULPIX_REPO_RAW = "https://raw.githubusercontent.com/$env:VULPIX_REPO/refs/heads/$env:VULPIX_BRANCH"
 
 if ($PSVersionTable.PSEdition -ne 'Desktop') {
@@ -32,7 +36,7 @@ function Bootstrap-Package($Package) {
     -Uri "$VULPIX_REPO_RAW/library/packages/$Package/manual.bootstrap.ps1"
   $installDir = "$MANUAL_ROOT\packages\$Package"
 
-  $binDirs = & ([scriptblock]::Create($script.Content)) -InstallDir "$installDir"
+  $binDirs = & ([scriptblock]::Create($script.Content)) -InstallDir "$installDir" 
   if (-not ($? -and $binDirs -and ($binDirs -is [array]))) {
     Write-Host "FATAL: $Package bootstrap failed"
     exit 1
@@ -44,11 +48,11 @@ function Bootstrap-Package($Package) {
 
 if (-not (Get-Command 'bash' -ErrorAction SilentlyContinue)) {
   Write-Host 'INFO: bash not installed'
-  Write-Host 'INFO: bootstrapping Git for Windows (for Git Bash)'
-  Bootstrap-Package 'git'
+  Write-Host 'INFO: bootstrapping MSYS2 for bash'
+  Bootstrap-Package 'msys2'
 
   if (-not (Get-Command 'bash' -ErrorAction SilentlyContinue)) {
-    Write-Host "FATAL: Git for Windows bootstrap suppossedly succeeded, but bash isn't available"
+    Write-Host "FATAL: MSYS2 bootstrap suppossedly succeeded, but bash isn't available"
     exit 1
   }
 }

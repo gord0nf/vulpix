@@ -23,7 +23,6 @@ Tasks=
 EditorOption=VIM
 CustomEditorPath=
 DefaultBranchOption=main
-PathOption=CmdTools
 SSHOption=OpenSSH
 TortoiseOption=false
 CURLOption=WinSSL
@@ -91,7 +90,9 @@ if ($Update) {
 }
 
 if ($Install) {
-  if (Test-Path $InstallDir) { Remove-Item -Force -Recurse $InstallDir }
+  if (Test-Path $InstallDir) {
+    Remove-Item -Force -Recurse $InstallDir 
+  }
   $url = Get-DownloadUrl $LatestVersion
 
   Write-Host 'INFO: downloading Git for Windows installer'
