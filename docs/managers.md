@@ -81,4 +81,9 @@ strict or safe mode.
 > `apt install ${package_name}`), instead of using the aliased package templates defined within the
 > vulpix library.
 
+since apt usually requires being run as root, it's not recommended to put apt packages in your user
+blueprint. instead, you can have a system-level root blueprint that defines all the apt packages for
+machine. then, if you require some packages for your user, you can defines those packages with the
+[assert](#assert) manager.
+
 see [here](../library/managers/apt/README.md) for implementation details.
