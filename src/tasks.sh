@@ -262,10 +262,9 @@ _task_main() {
   (
     export LOG_FILE="tasks/$TASK_NAME.log"
     info 'running new task'
-    # no need for open_stdout_log(), because its maintained from parent
     trap '[ $? -eq 0 ] && success "success" || err "failure"' EXIT
-    "$@"
-  ) 2>&1 | _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
+    "$@" | output >&3
+  ) 2>&1 3>&1 | _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
 }
 
 # exported functions ------------------------------------------------------------------------------
