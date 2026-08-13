@@ -13,6 +13,7 @@
         - vim
         - ytdlp
         - fzf
+    - add apt manager for debian
 - v2.0: windows compatiblity
     - actually make sure v1.0 features work on windows
         - real testing!
@@ -33,7 +34,6 @@
 ## unversioned/general
 
 - add some fundmeental managers:
-    - apt
     - pacman
     - winget
 - shell completion for subcommands, packages, etc
