@@ -1,19 +1,5 @@
 # TODO list
 
-- v1.1
-    - add install scripts for manual manager:
-        - golang
-        - neovim
-        - nodejs
-        - ohmyposh
-        - pwsh
-        - python
-        - ripgrep
-        - rmpc
-        - vim
-        - ytdlp
-        - fzf
-    - add apt manager for debian
 - v2.0: windows compatiblity
     - actually make sure v1.0 features work on windows
         - real testing!
@@ -30,10 +16,10 @@
         - yt-dlp
         - fzf? (but pwsh already has smth like it...)
         - mpv equivalent for windows? (necessary?)
+- v2.1: package managers for windows
+    - add pacman manager (primarily for msys2, but also for arch linux)
+    - add winget manager
 
 ## unversioned/general
 
-- add some fundmeental managers:
-    - pacman
-    - winget
 - shell completion for subcommands, packages, etc

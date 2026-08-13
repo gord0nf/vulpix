@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION='v1.0'
+VERSION='v1.1'
 
 # NOTE: this also adds the --test option, which means parse all the things, but don't actually do anything
 
