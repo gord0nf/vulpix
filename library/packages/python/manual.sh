@@ -61,4 +61,4 @@ else
   info 'up to date'
 fi
 
-printf '%s\n' "${BINS[@]}" # return relative bins
+echo '.' # return relative bin dir

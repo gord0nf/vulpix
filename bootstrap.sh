@@ -57,10 +57,15 @@ bootstrap_package() {
 
   local bin_dirs=()
   load_array_by_line_from_command bin_dirs \
-    source "$scriptf" "$install_dir" ||
+    source "$scriptf" "$install_dir" || {
+    err "'$1' bootstrap failed"
     return 1
+  }
   debug "$1 bin dirs: ${bin_dirs[@]}"
-  [[ "${#bin_dirs[@]}" -gt 0 ]] || return 1
+  [[ "${#bin_dirs[@]}" -gt 0 ]] || {
+    err "no bins returned from '$1' bootstrap"
+    return 1
+  }
 
   # add to PATH (only for bash session, but that's all that's needed)
   for dir in "${bin_dirs[@]}"; do
@@ -148,8 +153,18 @@ echo # style
 
 info "bootstrapping dependencies at $MANUAL_ROOT/packages"
 
-bootstrap_package yq || fatal 'yq bootstrap failed'
+if ! command_exists python3; then
+  bootstrap_package python
+  command_exists python3 || fatal "bootstrap suppossedly succeeded, but python3 isn't available"
+fi
+
+bootstrap_package yq
 command_exists yq || fatal "bootstrap suppossedly succeeded, but yq isn't available"
+
+# init python venv
+info 'installing python virtual environment for app'
+python3 -m venv "$VULPIX_INSTALL/.venv"
+"$VULPIX_INSTALL/.venv/bin/pip3" install -r "$VULPIX_INSTALL/requirements.txt"
 
 echo # style
 
