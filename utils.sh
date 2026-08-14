@@ -7,7 +7,8 @@ set -euo pipefail
 set -E
 shopt -s nullglob globstar inherit_errexit
 
-MSYSTEM=${MSYSTEM:-} # bash git-for-windows errs if not defined...
+export MSYSTEM=${MSYSTEM:-} # bash git-for-windows errs if not defined...
+export MSYS=winsymlinks:nativestrict
 
 # functions ---------------------------------------------------------------------------------------
 
@@ -326,16 +327,26 @@ atomic_change_apply() {
 file_link() {
   [[ $# -eq 2 ]]
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
-  # TODO: windows symlink alternative for non-admin users (who can't create symlinks); .lnk files? hard links?
+  if [[ $OS == 'windows' ]]; then
+    local a="New-Item -ItemType SymbolicLink -Path '$link' -Target '$target'"
+    local b="New-Item -ItemType HardLink -Path '$link' -Target '$target'"
+    powershell -Command "try { $a } catch { $b }"
+  else
+    ln -s "$target" "$link"
+  fi
 }
 
 # returns 0 if link created, else 1
 dir_link() {
   [[ $# -eq 2 ]]
   local link=$1 target=$2
-  MSYS=winsymlinks:nativestrict ln -s "$target" "$link"
-  # TODO: windows junction, checks ect.
+  if [[ $OS == 'windows' ]]; then
+    local a="New-Item -ItemType SymbolicLink -Path '$link' -Target '$target'"
+    local b="New-Item -ItemType Junction -Path '$link' -Target '$target'"
+    powershell -Command "try { $a } catch { $b }"
+  else
+    ln -s "$target" "$link"
+  fi
 }
 
 dir_is_empty() {
