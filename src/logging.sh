@@ -1,117 +1,77 @@
 #!/usr/bin/env bash
 
 [[ -v VULPIX_LOG ]] || fatal 'logging.sh requires VULPIX_LOG'
-
 mkdir -p "$VULPIX_LOG" "$VULPIX_TMP"
-
-# clear logs on init
-clear_logs() {
-  [[ -v LOG_FILE && -f "$VULPIX_LOG/$LOG_FILE" ]] && current_log=true || current_log=false
-  ! $current_log || mv "$VULPIX_LOG/$LOG_FILE" "$VULPIX_TMP/$LOG_FILE"
-  rm -fr "$VULPIX_LOG"
-  mkdir -p "$VULPIX_LOG"
-  ! $current_log || mv "$VULPIX_TMP/$LOG_FILE" "$VULPIX_LOG/$LOG_FILE"
-}
-
-# log file bridge ---------------------------------------------------------------------------------
-
-# uses LOG_FILE env var for relative path to log file, defaulting to main.log
-_log() {
-  local log_level=$1
-  local message=$2
-  local script_name=$(basename $0)
-  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-  local log_file="$VULPIX_LOG/${LOG_FILE:-main.log}"
-
-  if ! [[ -v LOG_REPLAY ]]; then
-    mkdir -p "$(dirname "$log_file")"
-    echo "$timestamp '$script_name' [$log_level] $message" >>"$log_file"
-  fi
-  echo "$message" # return message for printing
-}
 
 # programming interface ---------------------------------------------------------------------------
 
-output() {
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    _log 'OUTPUT' "$line"
-  done </dev/stdin
+_start_log_context() {
+  export LOG_FILE="$VULPIX_LOG/$1.log"
+  mkdir -p "$(dirname "$LOG_FILE")"
+  touch "$LOG_FILE"
+
+  exec 3>&1                          # save stdout
+  exec 4>&2                          # save stderr
+  exec 1> >(tee -a "$LOG_FILE") 2>&1 # redirect both stdout and stderr to logs+stdout
 }
 
-open_stdout_log() {
-  exec 3>&1 # open fd 3 for bypassing output logs (for ui stuff)
-  exec 1> >(output >&3)
-}
-close_stdout_log() {
+end_log_context() {
   exec 1>&3
+  exec 2>&4
   exec 3>&-
+  exec 4>&-
+  unset LOG_FILE
 }
 
-_log_interface() {
-  local log_level=$1
-  local color=$2
-  shift && shift
+start_log_context() {
+  [[ $# -eq 1 ]]
+  end_log_context # clear existing
+  _start_log_context "$1"
+}
 
-  # from args
-  if [[ $# -gt 0 ]]; then
-    _log "$log_level" "$*" | colorize "$color"
-  fi
-
-  # also from stdin
-  if [[ -p /dev/stdin ]]; then
-    while IFS= read -r line; do
-      _log "$log_level" "$line" | colorize "$color"
-    done
-  fi
+_log() {
+  local log_level=$1 message=$2 color=$3
+  [[ -v LOG_REPLAY ]] || echo "[$log_level] $message" >>"$LOG_FILE"
+  printf "${color}%s${RESET}\n" "$message"
 }
 
 debug() {
   if [[ -v DEBUG ]]; then
-    _log_interface 'DEBUG' "$PINK" "$@" >&2 </dev/stdin
+    _log 'DEBUG' "$*" "$PINK" >&4
   fi
 }
 
 info() {
-  _log_interface 'INFO' "$BLUE" "$@" >&2 </dev/stdin
+  _log 'INFO' "$*" "$BLUE" >&3
 }
 
 warn() {
-  _log_interface 'WARN' "$YELLOW" "$@" >&2 </dev/stdin
+  _log 'WARN' "$*" "$YELLOW" >&4
 }
 
 success() {
-  _log_interface 'SUCCESS' "$GREEN" "$@" >&2 </dev/stdin
+  _log 'SUCCESS' "$*" "$GREEN" >&3
 }
 
 err() {
-  _log_interface 'ERROR' "$RED" "$@" >&2 </dev/stdin
+  _log 'ERR' "$*" "$RED" >&4
 }
 
 fatal() {
-  _log_interface 'FATAL' "$RED" "$@" >&2 </dev/stdin
+  _log 'FATAL' "$*" "$RED" >&4
   exit 1
 }
 
 # stuff for replaying logs ------------------------------------------------------------------------
 
-# write to log_type and log_message
-parse_log_line() {
-  local line=$1
-  [[ "$line" == *'['*']'* ]] || return 1
-  line="${line#*'['}"
-  log_type="${line%%']'*}"
-  log_type=${log_type,,} # lowercase
-  log_message="${line#*']'}"
-}
-
 replay_logs() {
   export LOG_REPLAY=
   local log_type= message=
   while IFS= read -r line; do
-    if parse_log_line "$line"; then
-      if [[ "$log_type" == 'error' ]]; then log_type='err'; fi
+    if [[ "$line" =~ ^\[([a-zA-Z]+)\][[:space:]](.*)$ ]]; then
+      log_type=${BASH_REMATCH[1]} message=${BASH_REMATCH[2]}
       if function_exists "$log_type"; then
-        "$log_type" "$(trimstring "$log_message")" </dev/null
+        "$log_type" "$message" </dev/null
         continue
       fi
     fi
@@ -122,11 +82,32 @@ replay_logs() {
 
 replay_log_file() {
   [[ $# -eq 1 ]]
-  [[ -f "$VULPIX_LOG/$1" ]] || return 1
-  replay_logs <"$VULPIX_LOG/$1"
+  [[ -f "$VULPIX_LOG/$1.log" ]] || return 1
+  replay_logs <"$VULPIX_LOG/$1.log"
 }
 
 enum_log_files() {
   [[ $# -eq 1 ]]
-  load_array_by_line_from_command $1 find "$VULPIX_LOG" -type f -name '*.log' -printf "%P\n"
+  local files=$(
+    find "$VULPIX_LOG" -type f \( -name '*.log' -a -not -path "$FLOATING_LOG_FILE" \) -printf "%P\n" |
+      sed 's/\.[^.]*$//'
+  )
+  load_array_by_line "$1" <<<"$files"
+}
+
+# initial logs before start_log_context (aka floating logs) ---------------------------------------
+
+FLOATING_LOG='init'
+FLOATING_LOG_FILE="$VULPIX_LOG/$FLOATING_LOG.log"
+rm -f "$FLOATING_LOG_FILE"
+
+# before start_log_context is explicitly called, use FLOATING_LOG
+_start_log_context "$FLOATING_LOG"
+
+clear_logs() {
+  if [[ -f "$FLOATING_LOG_FILE" ]]; then local tmpflog="$VULPIX_TMP/f.log"; fi
+  ! [[ -v tmpflog ]] || mv "$FLOATING_LOG_FILE" "$tmpflog"
+  rm -fr "$VULPIX_LOG"
+  mkdir -p "$VULPIX_LOG"
+  ! [[ -v tmpflog ]] || mv "$tmpflog" "$FLOATING_LOG_FILE"
 }

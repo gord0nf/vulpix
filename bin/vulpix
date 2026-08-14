@@ -33,13 +33,8 @@ export VULPIX="$VULPIX"
 	echo 'failed to source $VULPIX/utils.sh' >&2
 	exit 1
 }
-
-# init logging ASAP
-export LOG_FILE='cli.log' && rm -f "$VULPIX_LOG/$LOG_FILE"
 source_script "$VULPIX/src/logging.sh"
 debug "using vulpix at: $VULPIX"
-open_stdout_log
-trap close_stdout_log EXIT SIGINT SIGTERM
 
 HELP=$"usage: vulpix [opts] [subcommand]
 
@@ -112,6 +107,12 @@ SUBCOMMANDS=(
 	'bootstrap'
 )
 
+NO_MAIN_LOG_SUBCOMMANDS=(
+	'replay'
+	'edit'
+	'bootstrap'
+)
+
 # parse raw arguments -----------------------------------------------------------------------------
 
 is_test=false
@@ -157,10 +158,14 @@ info "using blueprint at '$BLUEPRINT'"
 
 # process subcommand ------------------------------------------------------------------------------
 
-[[ "$subcommand" == 'replay' ]] || clear_logs
-unset LOG_FILE # main log context
+if ! array_has_element NO_MAIN_LOG_SUBCOMMANDS "$subcommand"; then
+	clear_logs
+	start_log_context 'main'
+	trap end_log_context EXIT
+fi
 
 replay_subcommand() {
+	# source task utils
 	export MAX_PROCESSES=1 TASK_SECTION_FOOTER=0 # default env var deps
 	source_script "$VULPIX/src/tasks.sh"
 
@@ -168,7 +173,6 @@ replay_subcommand() {
 	local all_logs=() logs=()
 	enum_log_files all_logs
 	for log in "${all_logs[@]}"; do
-		! [[ "$log" == 'cli.log' ]] || continue # skip cli.log cause that was overwritten
 		if [[ "$log" == *"$phrase"* ]]; then
 			logs+=("$log")
 		fi
@@ -186,18 +190,31 @@ replay_subcommand() {
 		get_failed_tasks
 		for log in "${logs[@]}"; do
 			local fancy_log="'$CYAN$log$RESET'"
-			local task="$(basename -s .log "$log")"
+			local task="$(basename "$log")"
 			! array_has_element failed_tasks "$task" || fancy_log+=" (${RED}failed${RESET})"
 			log_choices+=("$fancy_log")
 		done
-		get_choice_idx 'select log to replay: ' log_choices >&3 || fatal 'aborted'
+		get_choice_idx 'select log to replay: ' log_choices || fatal 'aborted'
 		log_idx="$choice_idx"
 		;;
 	esac
 	local log="${logs[$log_idx]}"
 
-	echo "replaying '$log'" >&2
-	replay_log_file "$log" |& less -R >&3
+	echo "replaying '$log'"
+	replay_log_file "$log" |& less -R
+}
+
+edit_subcommand() {
+	local editor=${VISUAL:-$EDITOR} path=$(dirname "$BLUEPRINT")
+	[[ -n "$editor" ]] || fatal "couldn't get editor; please define VISUAL or EDITOR"
+	debug "editor: $editor"
+	mkdir -p "$path"
+	cd "$path" && "$editor" 'blueprint.yaml'
+}
+
+bootstrap_subcommand() {
+	info 'running bootstrap script'
+	bash "$VULPIX/bootstrap.sh"
 }
 
 dotfiles_subcommand() {
@@ -216,19 +233,6 @@ dotfiles_subcommand() {
 
 	source_script "$VULPIX/src/dotfiles.sh"
 	setup_dotfiles || fatal 'dotfiles setup failed'
-}
-
-edit_subcommand() {
-	editor=${VISUAL:-$EDITOR}
-	[[ -n "$editor" ]] || fatal "couldn't get editor; please define VISUAL or EDITOR"
-	debug "editor: $editor"
-	mkdir -p "$VULPIX_CONFIG"
-	cd "$VULPIX_CONFIG" && "$editor" . >&3
-}
-
-bootstrap_subcommand() {
-	info 'running bootstrap script'
-	bash "$VULPIX/bootstrap.sh"
 }
 
 clean=false
@@ -503,15 +507,15 @@ if $clean || $install; then
 
 	declare -A manager_pids
 	for manager in "${managers[@]}"; do
-		declare -n scope_packages=$(manager_scope_packages "$manager")
 		prefix="manager[$manager] "
+		declare -n scope_packages=$(manager_scope_packages "$manager")
 		if [[ "${#scope_packages[@]}" -gt 0 ]]; then
 			# start in a subshell so manager script doesn't clutter env. start in background so multiple
 			# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
 			package_management_for_manager "$manager" \
 				$(manager_blueprint_packages "$manager") \
 				$(manager_scope_packages "$manager") \
-				> >(prefix_output "$prefix") 2> >(prefix_output "$prefix" >&2) \
+				4> >(prefix_output "$prefix" >&4) \
 				&
 			manager_pids["$manager"]="$!"
 		fi

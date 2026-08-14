@@ -372,18 +372,6 @@ normalize_path() {
   echo "${path/#~/$HOME}"
 }
 
-# add color to stdout
-colorize() {
-  [[ $# -eq 1 ]]
-  local color="$1"
-  xargs -n1 -d '\n' printf "${color}%s${RESET}\n" </dev/stdin
-}
-
-# https://superuser.com/questions/380772/removing-ansi-color-codes-from-text-stream
-decolorize() {
-  stdbuf -oL sed 's/\x1b\[[0-9;]*m//g' </dev/stdin
-}
-
 prefix_output() {
   [[ $# -eq 1 ]]
   stdbuf -oL sed "s/^/$1/" </dev/stdin

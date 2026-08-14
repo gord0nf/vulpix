@@ -175,7 +175,7 @@ _update_task_section_footer() {
 _task_handle_output() {
   ${TASK_SECTION:-false} &&
     cat >/dev/null ||
-    prefix_output "  $TASK_NAME "
+    prefix_output "$TASK_NAME "
 }
 
 # task failure tracking ---------------------------------------------------------------------------
@@ -260,11 +260,11 @@ _task_remove() {
 
 _task_main() {
   (
-    export LOG_FILE="tasks/$TASK_NAME.log"
+    start_log_context "tasks/$TASK_NAME"
     info 'running new task'
-    trap '[ $? -eq 0 ] && success "success" || err "failure"' EXIT
-    "$@" | output >&3
-  ) 2>&1 3>&1 | _task_handle_output >&2 # also redirect stdout to stderr because it shouldn't be logged in the main context
+    trap '[ $? -eq 0 ] && success "success" || err "failure"; end_log_context' EXIT
+    "$@"
+  ) 2>&1 3>&1 4>&1 | _task_handle_output >&4 # also redirect everything to nonlogged stderr (&4) because it shouldn't be logged in the main context
 }
 
 # exported functions ------------------------------------------------------------------------------
