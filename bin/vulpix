@@ -444,7 +444,7 @@ package_management_for_manager() {
 	debug "scoped to_update: ${to_update[@]}"
 
 	# test = exit before doing anything
-	if $is_test; then exit; fi
+	if $is_test; then return; fi
 
 	if $clean; then
 		if [[ "${#to_uninstall[@]}" -gt 0 ]]; then
@@ -503,31 +503,21 @@ failed_packages=()
 
 if $clean || $install; then
 	print_divider 'package management' >&3
-	begin_task_section 'package management' || true
 
-	declare -A manager_pids
+	begin_task_section 'package management' || true
 	for manager in "${managers[@]}"; do
 		prefix="manager[$manager] "
 		declare -n scope_packages=$(manager_scope_packages "$manager")
 		if [[ "${#scope_packages[@]}" -gt 0 ]]; then
-			# start in a subshell so manager script doesn't clutter env. start in background so multiple
-			# packages from multiple managers can be installed async (src/tasks.sh handles capping running tasks).
-			package_management_for_manager "$manager" \
-				$(manager_blueprint_packages "$manager") \
-				$(manager_scope_packages "$manager") \
-				4> >(prefix_output "$prefix" >&4) \
-				&
-			manager_pids["$manager"]="$!"
+			# start in a subshell so manager script doesn't clutter env
+			(
+				package_management_for_manager "$manager" \
+					$(manager_blueprint_packages "$manager") \
+					$(manager_scope_packages "$manager") \
+					4> >(prefix_output "$prefix" >&4)
+			) || true
 		fi
 	done
-
-	# wait for all package_management_for_manager background processes to finish
-	# NOTE: any tasks spawned by manager should be completed by the time package_management_for_manager ends via await_tasks
-	for manager in "${!manager_pids[@]}"; do
-		debug "waiting for '$manager' manager pid"
-		wait_safe "${manager_pids["$manager"]}"
-	done
-
 	end_task_section
 
 	# print managment tasks summary
