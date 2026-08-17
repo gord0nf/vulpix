@@ -8,14 +8,6 @@ CONSOLE_FORMATTER = logging.Formatter("%(message)s")
 FILE_FORMATTER = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 
 
-# https://stackoverflow.com/a/48201163
-class ExitOnExceptionHandler(logging.StreamHandler):
-    def emit(self, record):
-        super().emit(record)
-        if record.levelno == logging.CRITICAL:
-            raise SystemExit(1)
-
-
 def get_logger(log_name: str, log_file: bool = True) -> logging.Logger:
     logger = logging.getLogger(log_name)
     logger.setLevel(logging.DEBUG if env.VERBOSE else logging.INFO)
@@ -35,3 +27,6 @@ def get_logger(log_name: str, log_file: bool = True) -> logging.Logger:
 
 def clear_logs():
     shutil.rmtree(env.LOG_PATH)
+
+
+main = get_logger("main")

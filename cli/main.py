@@ -3,7 +3,6 @@ import logging
 import argparse
 
 import env
-import log
 
 VERSION = "v1.1"
 HELP = """usage: vulpix [opts] [subcommand]
@@ -88,6 +87,11 @@ def parse_args():
     parser.add_argument("subcommand", type=str, nargs="?")
     parser.add_argument("subcommand_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(namespace=ProgramArgs())
+    return args
+
+
+def main():
+    args = parse_args()
 
     if args.help:
         print(HELP)
@@ -103,13 +107,14 @@ def parse_args():
     if args.blueprint is not None:
         env.BLUEPRINT_PATH = args.blueprint
 
-    return args
+    # init main logger with env defined above
+    from log import main as logger
 
-
-def main():
-    args = parse_args()
-    logger = log.get_logger("main")
     logger.debug(args)
+
+    import subcommands
+
+    subcommands.run_subcommand(args.subcommand, args.subcommand_args)
 
 
 if __name__ == "__main__":
