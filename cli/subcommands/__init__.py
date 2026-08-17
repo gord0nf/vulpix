@@ -1,4 +1,4 @@
-from log import main as logger
+from log import FatalCliError
 
 
 def run_subcommand(subcommand: str, args: list[str]):
@@ -15,7 +15,6 @@ def run_subcommand(subcommand: str, args: list[str]):
         case "bootstrap":
             from subcommands.bootstrap import main as subcommand_main
         case _:
-            logger.critical(f"invalid subcommand: {subcommand}")
-            raise SystemExit(1)
+            raise FatalCliError(f"invalid subcommand: {subcommand}")
 
     subcommand_main(subcommand, args)

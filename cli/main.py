@@ -112,15 +112,16 @@ def main():
 
     logger.debug(args)
 
-    import subcommands
+    try:
+        import subcommands
 
-    subcommands.run_subcommand(args.subcommand, args.subcommand_args)
+        subcommands.run_subcommand(args.subcommand, args.subcommand_args)
+    except Exception:
+        logger.warning(f"see error details at '{env.LOG_PATH}'")
+        logger.critical("an unexpected, uncaught error occured")
+        logging.shutdown()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception:
-        logging.exception("an error occured")
-        logging.shutdown()
-        sys.exit(1)
+    main()

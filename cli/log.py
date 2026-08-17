@@ -3,9 +3,26 @@ import shutil
 import sys
 
 import env
+import shell
 
-CONSOLE_FORMATTER = logging.Formatter("%(message)s")
-FILE_FORMATTER = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        logging.DEBUG: shell.Colors.PURPLE,
+        logging.INFO: shell.Colors.BLUE,
+        logging.WARNING: shell.Colors.YELLOW,
+        logging.ERROR: shell.Colors.RED,
+        logging.CRITICAL: shell.Colors.BOLD + shell.Colors.RED,
+    }
+
+    def format(self, record):
+        log_color = self.COLORS.get(record.levelno, shell.Colors.RESET)
+        record.levelname = f"{log_color}{record.levelname}{shell.Colors.RESET}"
+        return super().format(record)
+
+
+CONSOLE_FORMATTER = ColoredFormatter("%(levelname)s> %(message)s")
+FILE_FORMATTER = logging.Formatter("%(asctime)s [%(levelname)s]: %(message)s")
 
 
 def get_logger(log_name: str, log_file: bool = True) -> logging.Logger:
@@ -29,4 +46,13 @@ def clear_logs():
     shutil.rmtree(env.LOG_PATH)
 
 
+# MAIN CONTEXT LOGGER
 main = get_logger("main")
+
+
+class FatalCliError(SystemExit):
+    """For when you want to exit cleanly from cli (versus just saying 'an error occured')"""
+
+    def __init__(self, message: str):
+        main.critical(message)
+        super().__init__(1)
