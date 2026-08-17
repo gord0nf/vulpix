@@ -4,7 +4,10 @@ import env
 from log import FatalCliError, main as logger
 
 
-def main(*_):
+def main(*args):
+    if len(args) > 0:
+        logger.warning("ignoring subcommand args...")
+
     editor = os.getenv("VISUAL", os.getenv("EDITOR"))
     if not editor:
         raise FatalCliError("couldn't get editor; please define VISUAL or EDITOR")
