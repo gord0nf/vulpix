@@ -32,5 +32,3 @@ def main(subcommand: str, args: list[str]):
 
     if not subcommand:
         subcommand = 'clean install config'
-
-
