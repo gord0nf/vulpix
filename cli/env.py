@@ -15,10 +15,6 @@ def _is_root():
     return os.geteuid() == 0
 
 
-VERBOSE = False
-TEST = False
-BLUEPRINT_PATH = None
-
 # system env vars ---------------------------------------------------------------------------------
 
 if "OS" not in os.environ:
@@ -130,3 +126,9 @@ if "FONT_INSTALL" not in os.environ:
     else:
         os.environ["FONT_INSTALL"] = expandvars("$HOME/.local/share/fonts")
 FONT_INSTALL = Path(os.environ["FONT_INSTALL"])
+
+# global settings ---------------------------------------------------------------------------------
+
+VERBOSE = False
+TEST = False
+BLUEPRINT_PATH = CONFIG_PATH / "blueprint.yaml"
