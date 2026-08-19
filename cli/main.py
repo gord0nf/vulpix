@@ -117,6 +117,8 @@ def main():
 
         subcommands.run_subcommand(args.subcommand, args.subcommand_args)
     except Exception:
+        if logger.level == logging.DEBUG:
+            logger.exception("exception raised")
         logger.warning(f"see error details at '{env.LOG_PATH}'")
         logger.critical("an unexpected, uncaught error occured")
         logging.shutdown()
