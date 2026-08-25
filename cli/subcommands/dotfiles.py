@@ -94,7 +94,8 @@ def main(_: str, args: list[str]):
     dotfiles_path: Path | None = None
     match len(args):
         case 0:
-            pass
+            from blueprint import expanded_blueprint as blueprint
+            dotfiles_path = blueprint.dotfiles
         case 1:
             dotfiles_path = Path(args[0])
         case _:
