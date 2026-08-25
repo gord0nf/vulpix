@@ -1,5 +1,6 @@
 import sys
 import os
+from os.path import expandvars
 import platform
 import logging
 from pathlib import Path
@@ -62,69 +63,70 @@ if "VULPIX_INSTALL" not in os.environ:
     else:
         if _is_root():
             if OS == "windows":
-                os.environ["VULPIX_INSTALL"] = os.path.expandvars(
-                    "$PROGRAMFILES/vulpix"
-                )
+                os.environ["VULPIX_INSTALL"] = expandvars("$PROGRAMFILES/vulpix")
             else:
                 os.environ["VULPIX_INSTALL"] = "/opt/vulpix"
         else:
             if OS == "windows":
-                os.environ["VULPIX_INSTALL"] = os.path.expandvars(
+                os.environ["VULPIX_INSTALL"] = expandvars(
                     "$LOCALAPPDATA/Programs/vulpix"
                 )
             else:
-                os.environ["VULPIX_INSTALL"] = os.path.expandvars(
-                    "$HOME/.local/opt/vulpix"
-                )
+                os.environ["VULPIX_INSTALL"] = expandvars("$HOME/.local/opt/vulpix")
 INSTALL_PATH = Path(os.environ["VULPIX_INSTALL"])
 
 if "VULPIX_DATA" not in os.environ:
     if _is_root():
         if OS == "windows":
-            os.environ["VULPIX_DATA"] = os.path.expandvars("$ProgramData/vulpix")
+            os.environ["VULPIX_DATA"] = expandvars("$ProgramData/vulpix")
         else:
             os.environ["VULPIX_DATA"] = "/var/lib/vulpix"
     else:
         if OS == "windows":
-            os.environ["VULPIX_DATA"] = os.path.expandvars("$LOCALAPPDATA/vulpix")
+            os.environ["VULPIX_DATA"] = expandvars("$LOCALAPPDATA/vulpix")
         else:
-            os.environ["VULPIX_DATA"] = os.path.expandvars("$HOME/.local/state/vulpix")
+            os.environ["VULPIX_DATA"] = expandvars("$HOME/.local/state/vulpix")
 DATA_PATH = Path(os.environ["VULPIX_INSTALL"])
 
 
 if "VULPIX_LOG" not in os.environ:
     if _is_root():
         if OS == "windows":
-            os.environ["VULPIX_LOG"] = os.path.expandvars("$ProgramData/vulpix/log")
+            os.environ["VULPIX_LOG"] = expandvars("$ProgramData/vulpix/log")
         else:
             os.environ["VULPIX_LOG"] = "/var/log/vulpix"
     else:
         if OS == "windows":
-            os.environ["VULPIX_LOG"] = os.path.expandvars("$LOCALAPPDATA/vulpix/log")
+            os.environ["VULPIX_LOG"] = expandvars("$LOCALAPPDATA/vulpix/log")
         else:
-            os.environ["VULPIX_LOG"] = os.path.expandvars(
-                "$HOME/.local/state/vulpix/log"
-            )
+            os.environ["VULPIX_LOG"] = expandvars("$HOME/.local/state/vulpix/log")
 LOG_PATH = Path(os.environ["VULPIX_LOG"])
 
 if "VULPIX_CONFIG" not in os.environ:
     if _is_root():
         if OS == "windows":
-            os.environ["VULPIX_CONFIG"] = os.path.expandvars(
-                "$ProgramData/vulpix/config"
-            )
+            os.environ["VULPIX_CONFIG"] = expandvars("$ProgramData/vulpix/config")
         else:
             os.environ["VULPIX_CONFIG"] = "/etc/vulpix"
     else:
         if OS == "windows":
-            os.environ["VULPIX_CONFIG"] = os.path.expandvars("$APPDATA/Roaming/vulpix")
+            os.environ["VULPIX_CONFIG"] = expandvars("$APPDATA/Roaming/vulpix")
         else:
-            os.environ["VULPIX_CONFIG"] = os.path.expandvars("$HOME/.config/vulpix")
+            os.environ["VULPIX_CONFIG"] = expandvars("$HOME/.config/vulpix")
 CONFIG_PATH = Path(os.environ["VULPIX_CONFIG"])
 
 if "VULPIX_TMP" not in os.environ:
     if "TMP" in os.environ:
-        os.environ["VULPIX_TMP"] = os.path.expandvars("$TMP/vulpix")
+        os.environ["VULPIX_TMP"] = expandvars("$TMP/vulpix")
     else:
         os.environ["VULPIX_TMP"] = "/tmp/vulpix"
 TMP_PATH = Path(os.environ["VULPIX_TMP"])
+
+if "FONT_INSTALL" not in os.environ:
+    if OS == "windows":
+        pass  # TODO
+    elif _is_root():
+        os.environ["FONT_INSTALL"] = "/usr/share/fonts"
+    else:
+        os.environ["FONT_INSTALL"] = expandvars("$HOME/.local/share/fonts")
+FONT_INSTALL = Path(os.environ["FONT_INSTALL"])
