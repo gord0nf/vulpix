@@ -23,12 +23,7 @@ SCHEMA = Schema(
         "extends": Optional(
             [Use(lambda e: _get_extended_path(e, env.BLUEPRINT_PATH.parent))], []
         ),
-        "packages": [
-            Regex(
-                r"^[A-Za-z]+@[A-Za-z]+$",
-                error="invalid package syntax (should be name@manager)",
-            )
-        ],
+        "packages": { str: list[str] }, # TODO Use validation of manager existence, then package existence in manager
         "config": object,
         "dotfiles": Optional(str, None),
         "settings": Optional(
