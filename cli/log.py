@@ -48,11 +48,3 @@ def clear_logs():
 
 # MAIN CONTEXT LOGGER
 main = get_logger("main")
-
-
-class FatalCliError(SystemExit):
-    """For when you want to exit cleanly from cli (versus just saying 'an error occured')"""
-
-    def __init__(self, message: str):
-        main.critical(message)
-        super().__init__(1)

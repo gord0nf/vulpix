@@ -5,13 +5,18 @@ import platform
 import logging
 from pathlib import Path
 
+class VulpixError(Exception):
+    exit_status: int
+    def __init__(self, message: str, exit_status: int = 1):
+        self.exit_status = exit_status
+        super().__init__(message)
 
 def _fatal(*msg):
     logging.critical(*msg)
     raise SystemExit(1)
 
 
-def _is_root():
+def is_root():
     return os.geteuid() == 0
 
 
@@ -130,5 +135,5 @@ FONT_INSTALL = Path(os.environ["FONT_INSTALL"])
 # global settings ---------------------------------------------------------------------------------
 
 VERBOSE = False
-TEST = False
+WHATIF = False
 BLUEPRINT_PATH = CONFIG_PATH / "blueprint.yaml"

@@ -56,7 +56,6 @@ install_packages() {
 # Required.
 # returns 0 if success, 1 if general failure, 2 if some packages failed (should also rollback changes to make atomic).
 #
-# also recommended: having a cache so it can be recovered easily (then actually removing them after period)
 uninstall_packages() {
     local -n packages=$1
     ...
