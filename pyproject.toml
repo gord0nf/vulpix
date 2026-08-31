@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vulpix"
+dynamic = ["version", "description"]
+
+[tool.hatch.version]
+path = "src/vulpix/__init__.py"
+
+[project.scripts]
+vulpix = "vulpix.__main__:main"
