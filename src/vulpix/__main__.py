@@ -3,9 +3,15 @@ import logging
 
 from vulpix import VulpixError, env
 from vulpix.core.logging import main as logger
-import vulpix.cli as cli
+from vulpix.cli import Cli
 
 def main():
+    cli = Cli(logger)
+
+    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(logging.DEBUG if cli.verbose else logging.INFO)
+    logger.addHandler(console_handler)
+
     try:
         cli.main()
     except VulpixError as e:

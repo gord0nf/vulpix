@@ -5,10 +5,6 @@ import argparse
 from vulpix import __version__, env, VulpixError
 from vulpix.core.logging import main as logger
 
-console_handler = logging.StreamHandler(sys.stderr)
-console_handler.setLevel(logging.INFO)
-logger.addHandler(console_handler)
-
 HELP = """usage: vulpix [opts] [subcommand]
 
 If run as root, applies changes at system level, else only applies at user
@@ -71,23 +67,76 @@ subcommands:
 
 NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."""
 
-def parse_args():
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--help", "-h", action="store_true")
-    parser.add_argument("--version", "-v", action="store_true")
-    parser.add_argument("--verbose", "-V", action="store_true")
-    parser.add_argument("--blueprint", "-b", type=str)
-    parser.add_argument("--whatif", "-w", action="store_true")
-    parser.add_argument("subcommand", type=str, nargs="?")
-    parser.add_argument("subcommand_args", nargs=argparse.REMAINDER)
-    return parser.parse_args()
+class Cli:
+    logger: Logger
 
-def main():
-    args = parse_args()
+    help: bool = False
+    version: bool = False
+    verbose: bool = False
+    whatif: bool = False
+    blueprint: str | None = None
+    path: str | None = None # context depends on subcommand
+    subcommand: str | None = None
+    query: list[str]
 
-    if args.help:
-        print(HELP)
-        sys.exit(0)
-    if args.version:
-        print(__version__)
-        sys.exit(0)
+    def __init__(self, logger: Logger):
+        self.logger = logger
+
+        parser = argparse.ArgumentParser(prog="vulpix", add_help=False)
+        parser.add_argument("--help", "-h", action="store_true")
+        parser.add_argument("--version", "-v", action="store_true")
+        parser.add_argument("--verbose", "-V", action="store_true")
+        parser.add_argument("--blueprint", "-b", type=str)
+        parser.add_argument("--whatif", "-w", action="store_true")
+        
+        subparsers = parser.add_subparsers(dest="subcommand")
+
+        for subcommand in ["edit", "dotfiles", "replay"]:
+            subparser = subparsers.add_parser(subcommand)
+            subparser.add_argument("path", type=str, nargs='?')
+
+        _, self.query = parser.parse_known_args(namespace=self)
+
+    def edit(self):
+        if len(self.query) != 0:
+            raise argparse.ArgumentTypeError("invalid subcommand args")
+
+        self.logger.info("edit")
+
+    def dotfiles(self):
+        if len(self.query) != 0:
+            raise argparse.ArgumentTypeError("invalid subcommand args")
+
+        self.logger.info("dotfiles")
+
+    def replay(self):
+        if len(self.query) != 0:
+            raise argparse.ArgumentTypeError("invalid subcommand args")
+
+        self.logger.info("replay")
+
+    def main(self):
+        if any(q.startswith('-') for q in self.query):
+            raise argparse.ArgumentTypeError("invalid option")
+
+        if self.help:
+            print(HELP)
+            sys.exit(0)
+
+        if self.version:
+            print(__version__)
+            sys.exit(0)
+
+        if args.blueprint is not None:
+            env.BLUEPRINT = args.blueprint
+
+        if self.subcommand == "replay":
+            self.replay()
+            sys.exit(0)
+
+        if self.subcommand == "edit":
+            self.edit()
+            sys.exit(0)
+
+        # TODO: use core.apply
+        self.logger.info(f"main: {self.subcommand}")
