@@ -3,7 +3,6 @@ import logging
 import argparse
 
 from vulpix import __version__, env, VulpixError
-from vulpix.core.logging import main as logger
 
 HELP = """usage: vulpix [opts] [actions]
 
@@ -101,8 +100,7 @@ class Cli(argparse.Namespace):
             print(__version__)
             sys.exit(0)
 
-        if self.verbose:
-            print(self)
+        self.logger.debug(str(self))
 
         if self.blueprint is not None:
             env.BLUEPRINT = self.blueprint
