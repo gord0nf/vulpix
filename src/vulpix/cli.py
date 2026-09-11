@@ -5,7 +5,7 @@ import argparse
 from vulpix import __version__, env, VulpixError
 from vulpix.core.logging import main as logger
 
-HELP = """usage: vulpix [opts] [subcommand]
+HELP = """usage: vulpix [opts] [actions]
 
 If run as root, applies changes at system level, else only applies at user
 level. This also effects where it looks for app dirs (like configuration).
@@ -18,107 +18,81 @@ options:
   -b, --blueprint   specify blueprint yaml path, otherwise searches default
                     locations
   -w, --whatif      show what would happen without doing anything
+  -e, --edit        opens config directory in $EDITOR or $VISUAL.
 
-subcommands:
+actions:
 
-  [none]    ...packages   Syncs system/user with blueprint. Equivalent of running
-                          'clean', then 'install ...packages', then 'config
-                          ...packages' subcommands, where ...packages are the
-                          packages passed as args. If no packages are passed,
-                          execution is the same, but the '--all' arg is appended
-                          to the 'config' cmd.
+  --sync      [regex]   Syncs system/user with blueprint. If any packages are
+                          in the blueprint but are not installed, they will be 
+                          installed. If any blueprint packages are already
+                          installed, they will be updated.
 
-  clean                   Cleans floating packages. If any packages are
+  --clean     [regex]     Cleans floating packages. If any packages are
                           installed but are not a package specified in blueprint
                           they will be uninstalled.
 
-  install   ...packages   Syncs *installation* of packages with blueprint. If
-                          any packages in the blueprint or args are not
-                          installed, they will be installed. If a package passed
-                          as an arg is not in the blueprint, it will prompt and
-                          require the package to be added to the blueprint
-                          before continuing. If any packages are passed,
-                          installation sync will only occur for the specified
-                          packages, else the entire blueprint is synced.
+  --config    [regex]     Runs config scripts as specified in blueprint.
 
-  config    ...packages|all Syncs *config* of packages with blueprint. It
-                            always runs the global config. If any packages are
-                          passed as args, it runs the config corresponding to
-                          those packages. If 'all' is passed, all packages'
-                          configs are ran.
-
-  reinstall ...packages    Uninstalls then reinstalls specified packages (or all
+  --reinstall [regex]     Uninstalls then reinstalls specified packages (or all
                           packages if none specified). Prompts to add to
                           blueprint if specified packages isn't there.
 
-  replay    <phrase>      For replaying logs of tasks for seeing what went wrong/
+  --replay    [phrase]    For replaying logs of tasks for seeing what went wrong/
                           right and debugging. Searches for logs with phrase as
                           substring and prompts which log to replay if there are
                           multiple.
 
-  dotfiles  <path>        Creates symlinks from stuff in dotfiles path
+  --dotfiles  [path]      Creates symlinks from stuff in dotfiles path
                           to all the correct locations. If <path> is not
                           supplied, uses the path in blueprint.yaml.
+"""
 
-  edit                    Opens config directory in $EDITOR or $VISUAL.
-
-  bootstrap               Updates vulpix and reruns bootstrap script. Use if you
-                          1) want to update vulpix, or 2) broke something.
-
-NOTE: ...packages are passed like package_name@manager (example: neovim@manual)."""
-
-class Cli:
+class Cli(argparse.Namespace):
     logger: Logger
 
+    # settings options
     help: bool = False
     version: bool = False
     verbose: bool = False
-    whatif: bool = False
     blueprint: str | None = None
-    path: str | None = None # context depends on subcommand
-    subcommand: str | None = None
-    query: list[str]
+    whatif: bool = False
+    edit: bool = False
+
+    # action options
+    sync: str | None = None
+    clean: str | None = None
+    config: str | None = None
+    reinstall: str | None = None
+    dotfiles: str | None = None
+    replay: str | None = None
 
     def __init__(self, logger: Logger):
         self.logger = logger
-
         parser = argparse.ArgumentParser(prog="vulpix", add_help=False)
+
         parser.add_argument("--help", "-h", action="store_true")
         parser.add_argument("--version", "-v", action="store_true")
         parser.add_argument("--verbose", "-V", action="store_true")
         parser.add_argument("--blueprint", "-b", type=str)
         parser.add_argument("--whatif", "-w", action="store_true")
+        parser.add_argument("--edit", "-e", action="store_true")
         
-        subparsers = parser.add_subparsers(dest="subcommand")
+        parser.add_argument("--sync", "-s", nargs='?', const='.*', default=None)
+        parser.add_argument("--clean", "-x", nargs='?', const='.*', default=None)
+        parser.add_argument("--config", "-c", nargs='?', const='.*', default=None)
+        parser.add_argument("--reinstall", "-r", nargs='?', const='.*', default=None)
+        parser.add_argument("--dotfiles", "-d", nargs='?', const='.*', default=None)
+        parser.add_argument("--replay", nargs='?', const='.*', default=None)
 
-        for subcommand in ["edit", "dotfiles", "replay"]:
-            subparser = subparsers.add_parser(subcommand)
-            subparser.add_argument("path", type=str, nargs='?')
+        parser.parse_args(namespace=self)
 
-        _, self.query = parser.parse_known_args(namespace=self)
-
-    def edit(self):
-        if len(self.query) != 0:
-            raise argparse.ArgumentTypeError("invalid subcommand args")
-
+    def edit_option(self):
         self.logger.info("edit")
 
-    def dotfiles(self):
-        if len(self.query) != 0:
-            raise argparse.ArgumentTypeError("invalid subcommand args")
-
-        self.logger.info("dotfiles")
-
-    def replay(self):
-        if len(self.query) != 0:
-            raise argparse.ArgumentTypeError("invalid subcommand args")
-
+    def replay_option(self):
         self.logger.info("replay")
 
     def main(self):
-        if any(q.startswith('-') for q in self.query):
-            raise argparse.ArgumentTypeError("invalid option")
-
         if self.help:
             print(HELP)
             sys.exit(0)
@@ -127,16 +101,19 @@ class Cli:
             print(__version__)
             sys.exit(0)
 
-        if args.blueprint is not None:
-            env.BLUEPRINT = args.blueprint
+        if self.verbose:
+            print(self)
 
-        if self.subcommand == "replay":
-            self.replay()
+        if self.blueprint is not None:
+            env.BLUEPRINT = self.blueprint
+
+        if self.edit:
+            self.edit_option()
             sys.exit(0)
 
-        if self.subcommand == "edit":
-            self.edit()
+        if self.replay is not None:
+            self.replay_option()
             sys.exit(0)
 
         # TODO: use core.apply
-        self.logger.info(f"main: {self.subcommand}")
+        self.logger.info("main")
