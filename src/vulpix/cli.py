@@ -1,6 +1,7 @@
 import sys
 import logging
 import argparse
+from pathlib import Path
 
 from vulpix import __version__, env, VulpixError
 
@@ -85,7 +86,7 @@ class Cli(argparse.Namespace):
 
         parser.parse_args(namespace=self)
 
-    def edit_option(self):
+    def edit_option(self, blueprint: Path):
         self.logger.info("edit")
 
     def replay_option(self):
@@ -102,16 +103,23 @@ class Cli(argparse.Namespace):
 
         self.logger.debug(str(self))
 
+        blueprint_path = env.CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
-            env.BLUEPRINT = self.blueprint
+            blueprint_path = Path(self.blueprint)
+
+        if not blueprint_path.exists():
+            # TODO: ask if you wanna copy the default
+            raise VulpixError(f"expected blueprint file at '{blueprint_path}'")
 
         if self.edit:
-            self.edit_option()
+            self.edit_option(blueprint_path)
             sys.exit(0)
 
         if self.replay is not None:
             self.replay_option()
             sys.exit(0)
 
-        # TODO: use core.apply
-        self.logger.info("main")
+        from vulpix.blueprint import expand_blueprint
+       
+        _, blueprint = expand_blueprint(blueprint_path, self.logger)
+        self.logger.debug(str(blueprint))

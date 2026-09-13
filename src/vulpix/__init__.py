@@ -28,8 +28,6 @@ class VulpixEnvironment:
     CONFIG: Final[Path]
     TMP: Final[Path]
 
-    BLUEPRINT: Path
-
     def __init__(self):
         match os.getenv("OS", sys.platform).lower():
             case "windows_nt" | "win32" | "cygwin" | "msys":
@@ -72,8 +70,6 @@ class VulpixEnvironment:
         self.LOG = Path(os.getenv("VULPIX_LOG") or self.default_log())
         self.CONFIG = Path(os.getenv("VULPIX_CONFIG") or self.default_config())
         self.TMP = Path(os.getenv("VULPIX_TMP") or self.default_tmp())
-
-        self.BLUEPRINT = self.CONFIG / "blueprint.yaml"
 
     def default_install(self):
         if self.IS_ROOT:
