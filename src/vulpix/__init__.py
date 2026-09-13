@@ -116,7 +116,7 @@ class VulpixEnvironment:
                 return "/etc/vulpix"
         else:
             if self.OS == "windows":
-                return expandvars("$APPDATA/Roaming/vulpix")
+                return expandvars("$APPDATA/vulpix")
             else:
                 return expandvars("$HOME/.config/vulpix")
 
