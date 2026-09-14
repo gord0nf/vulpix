@@ -2,6 +2,8 @@ import os
 from typing import Literal, Dict, List
 from dataclasses import dataclass, field
 
+from vulpix.core import managers
+
 _cpu_count = os.cpu_count()
 
 @dataclass
@@ -23,8 +25,13 @@ class Blueprint:
     settings: Settings = field(default_factory=Settings)
 
     def __post_init__(self):
-        # validate that all the packages and managers are valid!
-        pass # TODO
+        # verify valid managers and packages
+        for manager_id, packages in self.packages.items():
+            try:
+                manager = managers.get_manager(manager_id)
+                manager.check_packages(packages)
+            except managers.ManagerUnsupported as e:
+                raise ValueError(f"unsupported manager '{e.manager}': {e.message}")
+            except managers.InvalidPackage as e:
+                raise ValueError(f"invalid package '{e.package}' for '{e.manager}' manager")
 
-        # validate that scope_packages is a subset of packages!
-        pass # TODO

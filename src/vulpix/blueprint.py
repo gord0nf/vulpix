@@ -49,7 +49,6 @@ def expand_blueprint(path: Path, logger: Logger) -> tuple[dict, Blueprint]:
         if not isinstance(extends, list[str]):
             raise VulpixError(f"invalid 'extends' key in '{path}' (should be list of paths)")
 
-
     accumulated = {}
     for extended in extends:
         logger.debug(f"{path} extends {extended_path}")
@@ -66,7 +65,7 @@ def expand_blueprint(path: Path, logger: Logger) -> tuple[dict, Blueprint]:
             data=blueprint_dict,
             config=dacite_config
         )
-    except dacite.DaciteError as e:
+    except (dacite.DaciteError, ValueError) as e:
         logger.error(str(e))
         raise VulpixError(f"invalid blueprint at '{path}'")
 

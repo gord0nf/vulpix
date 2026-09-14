@@ -4,6 +4,8 @@ import argparse
 from pathlib import Path
 
 from vulpix import __version__, env, VulpixError, core
+from vulpix.core import managers
+from vulpix.core.blueprint import Blueprint
 
 HELP = """usage: vulpix [opts] [actions]
 
@@ -47,6 +49,22 @@ actions:
                           supplied, uses the path in blueprint.yaml.
 """
 
+
+def package_manage_section(blueprint: Blueprint, logger: Logger):
+    for manager_id, packages in blueprint.packages.items():
+        manager = managers.get_manager(manager_id)
+        diff = manager.get_package_diff(packages)
+
+        # TODO: apply scope to diff
+
+        manager.apply_changes(diff, logger)
+
+def package_config_section():
+    pass
+
+def dotfiles_section():
+    pass
+
 class Cli(argparse.Namespace):
     logger: Logger
 
@@ -79,8 +97,8 @@ class Cli(argparse.Namespace):
         
         parser.add_argument("--sync", "-s", nargs='?', const='.*', default=None)
         parser.add_argument("--clean", "-x", nargs='?', const='.*', default=None)
-        parser.add_argument("--config", "-c", nargs='?', const='.*', default=None)
         parser.add_argument("--reinstall", "-r", nargs='?', const='.*', default=None)
+        parser.add_argument("--config", "-c", nargs='?', const='.*', default=None)
         parser.add_argument("--dotfiles", "-d", nargs='?', const='.*', default=None)
         parser.add_argument("--replay", nargs='?', const='.*', default=None)
 
@@ -124,4 +142,11 @@ class Cli(argparse.Namespace):
         _, blueprint = expand_blueprint(blueprint_path, self.logger)
         self.logger.debug(str(blueprint))
 
-        core.apply(blueprint, self.logger)
+        if self.dotfiles is not None:
+            dotfiles_section()
+
+        if any(o is not None for o in [self.sync, self.clean, self.reinstall]):
+            package_manage_section(blueprint, self.logger)
+
+        if self.config is not None:
+            package_config_section()
