@@ -1,3 +1,8 @@
+import shutil
+
+def command_exists(command: str) -> bool:
+    return shutil.which(command) is not None
+
 # https://gist.github.com/rene-d/9e584a7dd2935d0f461904b9f2950007
 class Colors:
     BLACK = "\033[0;30m"

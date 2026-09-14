@@ -3,7 +3,7 @@ import logging
 import argparse
 from pathlib import Path
 
-from vulpix import __version__, env, VulpixError
+from vulpix import __version__, env, VulpixError, core
 
 HELP = """usage: vulpix [opts] [actions]
 
@@ -123,3 +123,5 @@ class Cli(argparse.Namespace):
        
         _, blueprint = expand_blueprint(blueprint_path, self.logger)
         self.logger.debug(str(blueprint))
+
+        core.apply(blueprint, self.logger)
