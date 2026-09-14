@@ -2,7 +2,7 @@ import sys
 import logging
 
 from vulpix import VulpixError, env
-from vulpix.core.logging import main as logger
+from vulpix.logging import main as logger
 from vulpix.utils import Colors
 from vulpix.cli import Cli
 
