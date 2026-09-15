@@ -1,6 +1,6 @@
 import queue
 import threading
-from logging import Logger
+import logging
 from typing import Callable, Protocol
 
 from vulpix.logging import get_logger
@@ -17,7 +17,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     # params like args, kwargs, task_name, task_queue
     type TaskFunction = Callable[[tuple, dict, str, ThreadedTaskQueue], BaseException | None]
 
-    logger: Logger
+    logger: logging.Logger
     threads: list[WorkerThread]
     exit_event: threading.Event
     completed_tasks: dict[str, bool]  # task_name: was_successful
@@ -65,7 +65,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                 if done_event:
                     done_event.set()
 
-    def __init__(self, n_threads: int, logger: Logger) -> None:
+    def __init__(self, n_threads: int, logger: logging.Logger) -> None:
         super().__init__(n_threads)
         self.logger = logger
         self.threads = []
@@ -89,17 +89,23 @@ class ThreadedTaskQueue(queue.Queue[Task]):
             thread.join()
         return False
 
+
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
 
     def wrapped_function(args: tuple, kwargs: dict, task_name: str, task_queue: ThreadedTaskQueue):
         kwargs["name"] = task_name
         kwargs["queue"] = task_queue
-        kwargs["logger"] = get_logger(f"tasks/{task_name}")
-        kwargs["logger"].info("running new task")
+
+        # logger with prefix
+        class PrefixAdapter(logging.LoggerAdapter):
+            def process(self, msg, kwargs):
+                return f"[{task_name}] {msg}", kwargs
+        kwargs["logger"] = PrefixAdapter(get_logger(f"tasks/{task_name}"))
 
         error: BaseException | None = None
         try:
+            kwargs["logger"].info("running new task")
             f(*args, **kwargs)
         except BaseException as e:
             kwargs["logger"].critical("task failed")
