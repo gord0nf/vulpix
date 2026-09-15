@@ -90,8 +90,7 @@ class Cli(argparse.Namespace):
     dotfiles: str | None = None
     replay: str | None = None
 
-    def __init__(self, logger: Logger):
-        self.logger = logger
+    def __init__(self):
         parser = argparse.ArgumentParser(prog="vulpix", add_help=False)
 
         parser.add_argument("--help", "-h", action="store_true")
