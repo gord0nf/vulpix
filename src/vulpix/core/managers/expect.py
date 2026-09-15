@@ -1,5 +1,5 @@
 """
-all 'assert' does is check if the package is already installed (it's not a "true" package manager).
+all 'expect' does is check if the package is already installed (it's not a "true" package manager).
 see entry in `docs/managers.md` for more details.
 
 three types of package verification:
@@ -21,36 +21,24 @@ from vulpix.core.managers._utils import PackageDiff
 def template_exists(name: str) -> bool:
     pass # TODO
 
-import time
-import random
-
 @tasks.task_function
 def check_template(package: str, logger: Logger, **_):
-    for i in range(0, 3):
-        time.sleep(random.uniform(0.5, 3.5))
-        logger.info(package)
     pass # TODO
 
 @tasks.task_function
 def check_command(package: str, logger: Logger, **_):
-    for i in range(0, 3):
-        time.sleep(random.uniform(0.5, 3.5))
-        logger.info(package)
     if not command_exists(package):
         raise VulpixError(f"command doesn't exist: {package}")
     logger.info(f"command exists: {package}")
 
 @tasks.task_function
 def check_force(package: str, logger: Logger, **_):
-    for i in range(0, 3):
-        time.sleep(random.uniform(0.5, 3.5))
-        logger.info(package)
     logger.info(f"force check: {package}")
 
 # exports -----------------------------------------------------------------------------------------
 
 def check_packages(packages: list[str]) -> None:
-    pass # assert doesn't have strict packages, see above
+    pass # expect doesn't have strict packages, see above
 
 def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
     return PackageDiff(to_install=blueprint_packages)
@@ -58,7 +46,7 @@ def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
 @tasks.task_function
 def apply_changes(diff: PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
     for package in diff.to_install:
-        task_name = f"install {package}@assert"
+        task_name = f"install {package}@expect"
         if template_exists(package):
             queue.run_task(task_name, check_template, package)
         elif package.endswith('!'):
