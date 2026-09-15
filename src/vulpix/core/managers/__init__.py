@@ -2,6 +2,7 @@ import importlib
 from logging import Logger
 
 from vulpix import VulpixError
+from vulpix.core import tasks
 from vulpix.core.managers._utils import *
 
 class Manager:
@@ -12,7 +13,8 @@ class Manager:
     def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
         raise NotImplementedError("manager did not export get_package_diff()")
 
-    def apply_changes(diff: PackageDiff, logger: Logger) -> None:
+    @tasks.task_function
+    def apply_changes(diff: PackageDiff) -> None:
         raise NotImplementedError("manager did not export get_package_diff()")
 
 _required_manager_module_exports = [attr for attr in dir(Manager) if not attr.startswith("__")]

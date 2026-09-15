@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from vulpix import __version__, env, VulpixError, core
-from vulpix.core import managers
+from vulpix.core import managers, tasks
 from vulpix.core.blueprint import Blueprint
 
 HELP = """usage: vulpix [opts] [actions]
@@ -51,13 +51,19 @@ actions:
 
 
 def package_manage_section(blueprint: Blueprint, logger: Logger):
-    for manager_id, packages in blueprint.packages.items():
-        manager = managers.get_manager(manager_id)
-        diff = manager.get_package_diff(packages)
+    with tasks.ThreadedTaskQueue(blueprint.settings.threads, logger) as task_queue:
+        for manager_id, packages in blueprint.packages.items():
+            manager = managers.get_manager(manager_id)
+            diff = manager.get_package_diff(packages)
 
-        # TODO: apply scope to diff
+            # TODO: apply scope to diff
 
-        manager.apply_changes(diff, logger)
+            logger.debug(f"{manager_id}: {diff}")
+            task_queue.run_task(
+                f"{manager_id} manager",
+                manager.apply_changes,
+                diff
+            )
 
 def package_config_section():
     pass

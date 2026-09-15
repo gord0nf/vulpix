@@ -15,21 +15,37 @@ from logging import Logger
 
 from vulpix import VulpixError
 from vulpix.utils import command_exists
+from vulpix.core import tasks
 from vulpix.core.managers._utils import PackageDiff
 
 def template_exists(name: str) -> bool:
     pass # TODO
 
-def check_template(name: str, logger: Logger):
+import time
+import random
+
+@tasks.task_function
+def check_template(package: str, logger: Logger, **_):
+    for i in range(0, 3):
+        time.sleep(random.uniform(0.5, 3.5))
+        logger.info(package)
     pass # TODO
 
-def check_command(name: str, logger: Logger):
-    if not command_exists(name):
-        raise VulpixError(f"command doesn't exist: {name}")
-    logger.info(f"command exists: {name}")
+@tasks.task_function
+def check_command(package: str, logger: Logger, **_):
+    for i in range(0, 3):
+        time.sleep(random.uniform(0.5, 3.5))
+        logger.info(package)
+    if not command_exists(package):
+        raise VulpixError(f"command doesn't exist: {package}")
+    logger.info(f"command exists: {package}")
 
-def check_force(name: str, logger: Logger):
-    logger.info(f"force check: {name}")
+@tasks.task_function
+def check_force(package: str, logger: Logger, **_):
+    for i in range(0, 3):
+        time.sleep(random.uniform(0.5, 3.5))
+        logger.info(package)
+    logger.info(f"force check: {package}")
 
 # exports -----------------------------------------------------------------------------------------
 
@@ -39,11 +55,13 @@ def check_packages(packages: list[str]) -> None:
 def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
     return PackageDiff(to_install=blueprint_packages)
 
-def apply_changes(diff: PackageDiff, logger: Logger) -> None:
+@tasks.task_function
+def apply_changes(diff: PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
     for package in diff.to_install:
+        task_name = f"install {package}@assert"
         if template_exists(package):
-            check_template(package, logger)
+            queue.run_task(task_name, check_template, package)
         elif package.endswith('!'):
-            check_force(package, logger)
+            queue.run_task(task_name, check_force, package)
         else:
-            check_command(package, logger)
+            queue.run_task(task_name, check_command, package)
