@@ -1,10 +1,12 @@
 import sys
+import os
 import logging
 import argparse
 import re
 from pathlib import Path
 from typing import Literal
 from dataclasses import astuple
+import subprocess
 
 from vulpix import __version__, env, VulpixError, core
 from vulpix.core import managers, tasks
@@ -143,7 +145,13 @@ class Cli(argparse.Namespace):
         parser.parse_args(namespace=self)
 
     def edit_option(self, blueprint: Path):
-        self.logger.info("edit")
+        blueprint.parent.mkdir(parents=True, exist_ok=True)
+        default_editor = 'notepad' if env.OS == 'windows' else 'nano'
+        editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
+
+        self.logger.info(f"opening '{editor} {blueprint}'")
+        os.chdir(blueprint.parent)
+        subprocess.call([editor, str(blueprint)])
 
     def replay_option(self, search_phrase: str):
         self.logger.info("replay")
