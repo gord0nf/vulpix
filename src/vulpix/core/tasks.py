@@ -21,6 +21,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     threads: list[WorkerThread]
     exit_event: threading.Event
     completed_tasks: dict[str, bool]  # task_name: was_successful
+    completed_tasks_lock: threading.Lock
 
     def run_task(self, name: str, f: TaskFunction, *args, **kwargs):
         self.logger.debug(f"adding task '{name}', {f.__name__}")
@@ -61,7 +62,8 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 
                 self.q.task_done()
                 self.q.logger.debug(f"task exited: {task_name} (exc: {error})")
-                self.q.completed_tasks[task_name] = error is None
+                with self.q.completed_tasks_lock:
+                    self.q.completed_tasks[task_name] = error is None
                 if done_event:
                     done_event.set()
 
@@ -70,6 +72,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         self.logger = logger
         self.threads = []
         self.completed_tasks = {}
+        self.completed_tasks_lock = threading.Lock()
         self.exit_event = threading.Event()
 
     def __enter__(self):
