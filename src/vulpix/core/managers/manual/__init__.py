@@ -270,7 +270,7 @@ def garbage_collection(logger: logging.Logger, **_):
 
     cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS)
     with Status(logger) as status:
-        garbage_packages = [p for p, s in status.by_package if s.last_active < cutoff_date]
+        garbage_packages = [p for p, s in status.by_package.items() if s.last_active < cutoff_date]
         for package in garbage_packages:
             logger.info(f"'{package}' for garbage collection")
             destory_package(package, status)
@@ -323,4 +323,6 @@ def apply_changes(diff: PackageDiff, queue: tasks.ThreadedTaskQueue, **_) -> Non
         queue.run_task(task_name, update_package, package)
         spawned_tasks.append(task_name)
 
-    # TODO: spawn garbage_collection when all spawned tasks are done
+    # postsetup garbage_collection
+    queue.wait_for_tasks(spawned_tasks)
+    queue.run_task("postsetup manual", garbage_collection)

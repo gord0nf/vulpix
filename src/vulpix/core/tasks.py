@@ -21,20 +21,13 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     logger: logging.Logger
     threads: list[WorkerThread]
     exit_event: threading.Event
+    task_completed_event: threading.Event
     completed_tasks: dict[str, bool]  # task_name: was_successful
     completed_tasks_lock: threading.Lock
 
     def run_task(self, name: str, f: TaskFunction, *args, **kwargs):
         self.logger.debug(f"adding task '{name}', {f.__name__}")
         self.put((name, f, args, kwargs), block=True)
-
-    def run_foreground_task(self, name: str, f: TaskFunction, *args, **kwargs):
-        if "_done_event" in kwargs:
-            raise Exception("ThreadedTaskQueue requires ownership of _done_event kwarg")
-        done_event = threading.Event()
-        kwargs["_done_event"] = done_event
-        self.run_task(name, f, args, kwargs)
-        done_event.wait()
 
     class WorkerThread(threading.Thread):
         q: ThreadedTaskQueue
@@ -54,27 +47,22 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 
                 self.q.logger.debug(f"task starting: {task_name}")
 
-                # check for the _done_event used by run_foreground_task()
-                done_event: threading.Event | None = None
-                if "_done_event" in kwargs and isinstance(kwargs["_done_event"], threading.Event):
-                    done_event = kwargs.pop("_done_event")
-
                 error = f(args, kwargs, task_name=task_name, task_queue=self.q)
 
                 self.q.task_done()
                 self.q.logger.debug(f"task exited: {task_name} (exc: {error})")
                 with self.q.completed_tasks_lock:
                     self.q.completed_tasks[task_name] = error is None
-                if done_event:
-                    done_event.set()
+                self.q.task_completed_event.set()
 
     def __init__(self, n_threads: int, logger: logging.Logger) -> None:
         super().__init__(n_threads)
         self.logger = logger
         self.threads = []
+        self.exit_event = threading.Event()
+        self.task_completed_event = threading.Event()
         self.completed_tasks = {}
         self.completed_tasks_lock = threading.Lock()
-        self.exit_event = threading.Event()
 
     def __enter__(self):
         # start worker threads
@@ -93,6 +81,14 @@ class ThreadedTaskQueue(queue.Queue[Task]):
             thread.join()
         return False
 
+    def wait_for_tasks(self, tasks: list[str]):
+        """holds until the target tasks all exist in self.completed_tasks"""
+        satisfied = False
+        while not satisfied:
+            self.task_completed_event.wait()
+            with self.completed_tasks_lock: # immediately get lock
+                satisfied = all(t in self.completed_tasks for t in tasks)
+                self.task_completed_event.clear()
 
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
