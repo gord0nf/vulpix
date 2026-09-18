@@ -3,6 +3,7 @@ import threading
 import logging
 from typing import Callable, Protocol
 
+from vulpix import VulpixError
 from vulpix.logging import get_logger
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
@@ -104,18 +105,24 @@ def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
         class PrefixAdapter(logging.LoggerAdapter):
             def process(self, msg, kwargs):
                 return f"[{task_name}] {msg}", kwargs
-        kwargs["logger"] = PrefixAdapter(get_logger(f"tasks/{task_name}"))
+        logger = get_logger(f"tasks/{task_name}", verbose=task_queue.logger.verbose)
+        kwargs["logger"] = PrefixAdapter(logger)
 
         error: BaseException | None = None
         try:
             kwargs["logger"].info("running new task")
             f(*args, **kwargs)
-        except BaseException as e:
-            kwargs["logger"].critical("task failed")
+        except VulpixError as e:
             error = e
+            kwargs["logger"].critical(e.message)
+        except BaseException as e:
+            error = e
+            kwargs["logger"].debug("exception raised", exc_info=True)
+            kwargs["logger"].critical("task failed")
         else:
             kwargs["logger"].info("task succeeded")
 
         return error
-
+    
+    wrapped_function.__name__ = f.__name__
     return wrapped_function

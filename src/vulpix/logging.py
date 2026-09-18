@@ -23,6 +23,7 @@ CONSOLE_FORMATTER = ColoredLogFormatter("%(levelname)s> %(message)s")
  
 def get_logger(log_name: str, verbose: bool = False, log_file: bool = True) -> Logger:
     logger = logging.getLogger(log_name)
+    logger.verbose = verbose
     logger.setLevel(logging.DEBUG)
 
     if log_file:

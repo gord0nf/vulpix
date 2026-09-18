@@ -14,10 +14,8 @@ def main():
         cli.logger.critical(e.message)
         sys.exit(e.exit_status)
     except Exception as e:
-        if cli.verbose:
-            cli.logger.exception("exception raised")
-        else:
-            cli.logger.warning(f"see error details at '{env.LOG}'")
+        cli.logger.debug("exception raised", exc_info=True)
+        cli.logger.warning(f"see error details at '{env.LOG}'")
         cli.logger.critical("an unexpected, uncaught error occured")
         sys.exit(1)
 
