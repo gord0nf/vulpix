@@ -5,7 +5,7 @@ from vulpix import env, VulpixError
 import vulpix.core.managers.manual.package_utils as putils
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-WINDOWS_SCRIPT = SCRIPT_DIR / "python.ps1"
+WINDOWS_SCRIPT = SCRIPT_DIR / "git.ps1"
 
 def main(install_dir: Path, logger: Logger) -> list[Path]:
     if env.OS != 'windows':
