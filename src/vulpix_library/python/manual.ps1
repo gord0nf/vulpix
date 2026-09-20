@@ -81,7 +81,7 @@ if ($Update) {
 }
 
 if ($Install) {
-  Remove-Item $InstallDir -Force -Recurse -ErrorAction SilentlyContinue
+  $tmpInstallDir = "$InstallDir.tmp"
   $url = Get-DownloadUrl $LatestVersion
   [Console]::Error.WriteLine("DEBUG: url=$url")
 
@@ -92,21 +92,13 @@ if ($Install) {
   Invoke-WebRequest -UseBasicParsing -OutFile "$tmp" "$url"
 
   [Console]::Error.WriteLine('INFO: extracting')
-  New-Item $InstallDir -Type Directory -Force -ErrorAction SilentlyContinue | Out-Null
+  New-Item $tmpInstallDir -Type Directory -Force -ErrorAction SilentlyContinue | Out-Null
   Add-Type -Assembly "System.IO.Compression.Filesystem"
-  [System.IO.Compression.ZipFile]::ExtractToDirectory($tmp, $InstallDir)
-
-  #while ($true) {
-    #$topLevelItems = Get-ChildItem -Path $InstallDir
-    #if (($topLevelItems.Count -eq 1) -and ($topLevelItems[0].PSIsContainer)) {
-      ##Get-ChildItem -Path $topLevelItems[0].FullName | Move-Item -Destination $InstallDir -Force
-      #Remove-Item -Path $topLevelItems[0] -Force
-    #} else {
-      #break
-    #}
-  #}
+  [System.IO.Compression.ZipFile]::ExtractToDirectory($tmp, $tmpInstallDir)
 
   Remove-Item "$tmp" -Force
+  Remove-Item $InstallDir -Force -Recurse -ErrorAction SilentlyContinue
+  Move-Item -Path $tmpInstallDir -Destination $InstallDir
 }
 
 if ((Test-Path ($Binaries | ForEach-Object { "$InstallDir\$_" })) -contains $false) {

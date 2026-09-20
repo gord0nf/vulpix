@@ -76,10 +76,7 @@ def run_package_script(package: str, logger: logging.Logger) -> list[str]:
     logger.info(f"running script for package '{package}'")
     package_script = get_package_script(package)
     install_dir = get_package_install_dir(package)
-
-    with utils.AtomicChange(install_dir) as dir:
-        binaries = package_script(str(dir), logger)
-    return binaries
+    return package_script(str(install_dir), logger)
 
 # status.yaml operations --------------------------------------------------------------------------
 
@@ -101,7 +98,7 @@ class Status:
         try:
             STATUS_LOCK.acquire(timeout=STATUS_TIMEOUT)
         except Timeout:
-            raise VulpixError(f"manual couldn't aquire lock {STATUS_LCOK}")
+            raise VulpixError(f"manual couldn't aquire lock {STATUS_LOCK}")
 
         with open(STATUS_YAML, "r") as file:
             status = yaml.safe_load(file)
