@@ -285,11 +285,11 @@ def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
     diff = PackageDiff()
 
     with Status(main_logger) as status:
-        for package in status.by_package.keys():
+        for package, pstatus in status.by_package.items():
             if package in blueprint_packages:
                 diff.to_update.append(package)
-            else: 
-                diff.to_uninstall.append(existing_package)
+            elif pstatus.active: 
+                diff.to_uninstall.append(package)
         for package in blueprint_packages:
             if package not in status.by_package:
                 diff.to_install.append(package)
