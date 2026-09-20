@@ -13,47 +13,6 @@ from vulpix.core import managers, tasks
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.managers import PackageDiff
 
-HELP = """usage: vulpix [opts] [command]
-
-If run as root, applies changes at system level, else only applies at user
-level. This also effects where it looks for app dirs (like configuration).
-
-options:
-
-  -h, --help                print help
-  -v, --version             print version tag
-  -V, --verbose             print debug logs
-  -w, --whatif              show what would happen without doing anything
-  -b, --blueprint           specify blueprint.yaml path, otherwise searches
-                            default locations
-
-commands:
-
-  sync      [opts]      Syncs system/user with the blueprint. If no [opts]
-                        are supplied, runs with `--clean --apply --config`.
-  dotfiles  [path]      Creates symlinks from stuff in dotfiles path to all
-                        the correct locations. If [path] is not supplied,
-                        uses the path in the blueprint.
-  blueprint [opts]      Edit the blueprint.
-  replay    [regex]     Replay a log file (prompts if multiple matches).
-
-sync command:
-
-  sync -a, --apply     [regex]  If any packages are in the blueprint but are
-                                not installed, they will be installed. If
-                                any blueprint packages are already installed,
-                                they will be updated.
-  sync -x, --clean     [regex]  If any packages are installed but are not a
-                                package specified in blueprint they will be
-                                uninstalled.
-  sync -c, --config    [regex]  Runs config scripts as specified in blueprint.
-  sync -r, --reinstall <regex>  Uninstalls then reinstalls matching packages.
-
-blueprint command:
-
-  blueprint -e, --edit      Open in $VISUAL/$EDITOR.
-"""
-
 def regex_arg(arg: str) -> re.Pattern[str]:
     try:
         return re.compile(arg)
@@ -145,43 +104,87 @@ class Cli(argparse.Namespace):
     log: re.Pattern | None = None
 
     def __init__(self):
-        parser = argparse.ArgumentParser(prog="vulpix", add_help=False)
-        parser.add_argument("--help", "-h", action="store_true")
-        parser.add_argument("--version", "-v", action="store_true")
-        parser.add_argument("--verbose", "-V", action="store_true")
-        parser.add_argument("--blueprint", "-b", type=str)
-        parser.add_argument("--whatif", "-w", action="store_true")
+        parser = argparse.ArgumentParser(
+            prog="vulpix",
+            description="blueprint-driven system management/configuration tool.",
+            epilog="if run as root, applies changes at system level, else only applies at user " \
+                   "level. This also effects where it looks for app dirs (like configuration).")
+        parser.add_argument(
+            "-v", "--version",
+            action='version', 
+            version=__version__,
+            help="print version tag")
+        parser.add_argument("-V", "--verbose", action="store_true", help="print debug logs")
+        parser.add_argument(
+            "-w", "--whatif",
+            action="store_true",
+            help="show what would happen without doing anything")
+        parser.add_argument(
+            "-b", "--blueprint",
+            type=str, metavar="PATH",
+            help="specify blueprint.yaml path, otherwise searches default locations")
 
-        subparsers = parser.add_subparsers(dest="command", required=False)
+        subparsers = parser.add_subparsers(dest="command", required=True)
 
         # sync command
-        sync_parser = subparsers.add_parser("sync")
-        sync_parser.add_argument("--apply", "-a", type=regex_arg, nargs='?', const='.*', default=None)
-        sync_parser.add_argument("--clean", "-x", type=regex_arg, nargs='?', const='.*', default=None)
-        sync_parser.add_argument("--config", "-c", type=regex_arg, nargs='?', const='.*', default=None)
-        sync_parser.add_argument("--reinstall", "-r", type=regex_arg)
+        sync_desc = "syncs system/user with the blueprint."
+        sync_parser = subparsers.add_parser(
+            "sync",
+            help=sync_desc,
+            description=sync_desc,
+            epilog="if no [opts] are supplied, runs with `--clean --apply --config`.")
+        sync_parser.add_argument(
+            "-a", "--apply",
+            type=regex_arg, metavar="REGEX",
+            nargs='?', const='.*', default=None,
+            help="if any packages are in the blueprint but are not installed, they will be " \
+                 "installed. If any blueprint packages are already installed, they will be updated.")
+        sync_parser.add_argument(
+            "-x", "--clean",
+            type=regex_arg, metavar="REGEX",
+            nargs='?', const='.*', default=None,
+            help="if any packages are installed but are not a package specified in blueprint " \
+                 "they will be uninstalled.")
+        sync_parser.add_argument(
+            "-c", "--config",
+            type=regex_arg, metavar="REGEX",
+            nargs='?', const='.*', default=None,
+            help="runs config scripts as specified in blueprint.")
+        sync_parser.add_argument(
+            "-r", "--reinstall",
+            type=regex_arg, metavar="REGEX",
+            help="uninstalls then reinstalls matching packages.")
 
         # dotfiles command
-        dotfiles_parser = subparsers.add_parser("dotfiles")
-        dotfiles_parser.add_argument("path", nargs="?", default=None)
+        dotfiles_desc = "creates symlinks from stuff in dotfiles path to all the correct locations."
+        dotfiles_parser = subparsers.add_parser(
+                "dotfiles", help=dotfiles_desc, description=dotfiles_desc)
+        dotfiles_parser.add_argument("path", nargs="?", default=None,
+                                     help="if not supplied, uses the path in the blueprint.")
 
         # blueprint command
-        blueprint_parser = subparsers.add_parser("blueprint")
-        blueprint_parser.add_argument("--edit", "-e", action="store_true")
+        blueprint_desc = "edit the blueprint."
+        blueprint_parser = subparsers.add_parser("blueprint",
+            help=blueprint_desc, description=blueprint_desc)
+        blueprint_parser.add_argument(
+            "-e", "--edit",
+            action="store_true",
+            help="open in $VISUAL/$EDITOR.")
 
         # replay command
-        replay_parser = subparsers.add_parser("replay")
-        replay_parser.add_argument("log", type=regex_arg, nargs='?', default='.*')
+        replay_desc = "replay a log file."
+        replay_parser = subparsers.add_parser(
+            "replay",
+            help=replay_desc,
+            description=f"{replay_desc} prompts if multiple matches.")
+        replay_parser.add_argument(
+                "log",
+                type=regex_arg, metavar="REGEX",
+                nargs='?', default='.*',
+                help="filter log files")
 
+        # actaually parse it!
         parser.parse_args(namespace=self)
-
-        if self.version:
-            print(__version__)
-            sys.exit(0)
-
-        if self.help or self.command is None:
-            print(HELP)
-            sys.exit(0)
 
     def sync_command(self, blueprint_path: Path):
         blueprint = parse_blueprint(blueprint_path, self.logger)

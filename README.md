@@ -83,43 +83,68 @@ alternatively, you can also use the [linux](#linux) installation if you have bas
 
 ## usage
 
-    usage: vulpix [opts] [actions]
+    usage: vulpix [-h] [-v] [-V] [-w] [-b PATH] {sync,dotfiles,blueprint,replay} ...
 
-    If run as root, applies changes at system level, else only applies at user
-    level. This also effects where it looks for app dirs (like configuration).
+        blueprint-driven system management/configuration tool.
 
-    options:
+        positional arguments:
+          {sync,dotfiles,blueprint,replay}
+            sync                syncs system/user with the blueprint.
+            dotfiles            creates symlinks from stuff in dotfiles path to all the correct
+                                locations.
+            blueprint           edit the blueprint.
+            replay              replay a log file.
 
-      -h, --help        print help
-      -v, --version     print version tag
-      -V, --verbose     print debug logs
-      -b, --blueprint   specify blueprint yaml path, otherwise searches default
-                        locations
-      -w, --whatif      show what would happen without doing anything
-      -e, --edit        opens config directory in $EDITOR or $VISUAL.
+        options:
+          -h, --help            show this help message and exit
+          -v, --version         print version tag
+          -V, --verbose         print debug logs
+          -w, --whatif          show what would happen without doing anything
+          -b, --blueprint PATH  specify blueprint.yaml path, otherwise searches default locations
 
-    actions:
+        if run as root, applies changes at system level, else only applies at user level. This also
+        effects where it looks for app dirs (like configuration).
 
-      --sync      [regex]   Syncs system/user with blueprint. If any packages are
-                              in the blueprint but are not installed, they will be 
-                              installed. If any blueprint packages are already
-                              installed, they will be updated.
+    usage: vulpix sync [-h] [-a [REGEX]] [-x [REGEX]] [-c [REGEX]] [-r REGEX]
 
-      --clean     [regex]     Cleans floating packages. If any packages are
-                              installed but are not a package specified in blueprint
-                              they will be uninstalled.
+        syncs system/user with the blueprint.
 
-      --config    [regex]     Runs config scripts as specified in blueprint.
+        options:
+          -h, --help            show this help message and exit
+          -a, --apply [REGEX]   if any packages are in the blueprint but are not installed, they
+                                will be installed. If any blueprint packages are already installed,
+                                they will be updated.
+          -x, --clean [REGEX]   if any packages are installed but are not a package specified in
+                                blueprint they will be uninstalled.
+          -c, --config [REGEX]  runs config scripts as specified in blueprint.
+          -r, --reinstall REGEX uninstalls then reinstalls matching packages.
 
-      --reinstall [regex]     Uninstalls then reinstalls specified packages (or all
-                              packages if none specified). Prompts to add to
-                              blueprint if specified packages isn't there.
+        if no [opts] are supplied, runs with `--clean --apply --config`.
 
-      --replay    [phrase]    For replaying logs of tasks for seeing what went wrong/
-                              right and debugging. Searches for logs with phrase as
-                              substring and prompts which log to replay if there are
-                              multiple.
+    usage: vulpix dotfiles [-h] [path]
 
-      --dotfiles  [path]      Creates symlinks from stuff in dotfiles path
-                              to all the correct locations. If <path> is not
-                              supplied, uses the path in blueprint.yaml.
+        creates symlinks from stuff in dotfiles path to all the correct locations.
+
+        positional arguments:
+          path        if not supplied, uses the path in the blueprint.
+
+        options:
+          -h, --help  show this help message and exit
+
+    usage: vulpix blueprint [-h] [-e]
+
+        edit the blueprint.
+
+        options:
+          -h, --help  show this help message and exit
+          -e, --edit  open in $VISUAL/$EDITOR.
+
+    usage: vulpix replay [-h] [REGEX]
+
+        replay a log file. prompts if multiple matches.
+
+        positional arguments:
+          REGEX       filter log files
+
+        options:
+          -h, --help  show this help message and exit
