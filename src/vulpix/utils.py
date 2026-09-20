@@ -76,25 +76,30 @@ def rm_fr(path: Path):
     else:
         path.unlink(missing_ok=True)
 
-def cp_r(source: Path, dest: Path):
+def cp_r(source: Path, dest: Path, preserve_junctions: bool = False):
     if source.is_dir():
-        copytree_windows(source, dest)
+        if preserve_junctions:
+            copytree_windows(source, dest) # slower
+        else:
+            shutil.copytree(source, dest)
     else:
         shutil.copy2(source, dest, follow_symlinks=False)
 
 class AtomicChange:
     target: Path
     tmp: Path
+    preserve_junctions: bool
 
-    def __init__(self, target: Path):
+    def __init__(self, target: Path, preserve_junctions: bool = False):
         self.target = target
         self.tmp = target.with_suffix(".tmp")
+        self.preserve_junctions = preserve_junctions
 
     def __enter__(self):
         if self.tmp.exists():
             raise Exception('_atomic_change_start sanity check failed!')
         if self.target.exists():
-            cp_r(self.target, self.tmp)
+            cp_r(self.target, self.tmp, self.preserve_junctions)
         return self.tmp
 
     def __exit__(self, exc_type, *_):

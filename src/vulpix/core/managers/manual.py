@@ -38,14 +38,13 @@ directories containing binaries, seperated by newlines. (these become part of th
 import yaml
 import logging
 import dacite
-import importlib
-import importlib.util
 from filelock import FileLock, Timeout
 from dataclasses import dataclass, asdict
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, List
 
+import vulpix_library
 from vulpix import env, VulpixError, utils
 from vulpix.core import tasks
 from vulpix.core.managers._utils import PackageDiff, InvalidPackage
@@ -59,14 +58,12 @@ N_GRACE_DAYS = 30 # number of days before deactivated packages are actually dest
 
 main_logger = logging.getLogger("main")
 
-type PackageScript = Callable[[Path, logging.Logger], List[Path]]
+type PackageScript = Callable[[str, logging.Logger], List[str]]
 
 def get_package_script(package: str) -> PackageScript:
-    try:
-        module = importlib.import_module(f".packages.{package}", package=__name__)
-    except ModuleNotFoundError:
+    module = vulpix_library.get_package(package, "manual")
+    if not module:
         raise InvalidPackage(package, "manual")
-
     main = getattr(module, "main", None)
     if not main or not callable(main):
         raise Exception(f"manual package script for '{package}' did not export main() correctly")
@@ -75,13 +72,13 @@ def get_package_script(package: str) -> PackageScript:
 def get_package_install_dir(package: str) -> Path:
     return ROOT_DIR / f"packages/{package}"
 
-def run_package_script(package: str, logger: logging.Logger) -> list[Path]:
+def run_package_script(package: str, logger: logging.Logger) -> list[str]:
     logger.info(f"running script for package '{package}'")
     package_script = get_package_script(package)
     install_dir = get_package_install_dir(package)
 
     with utils.AtomicChange(install_dir) as dir:
-        binaries = package_script(dir, logger)
+        binaries = package_script(str(dir), logger)
     return binaries
 
 # status.yaml operations --------------------------------------------------------------------------
@@ -178,7 +175,7 @@ class Status:
     def activate_package_binaries(self, package: str):
         self.logger.info(f"activating '{package}' binaries")
         binaries = self.by_package[package].binaries
-        with utils.AtomicChange(BIN_DIR) as bin_dir:
+        with utils.AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
                 bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
                 self.logger.debug(f"bin link: '{bin_link}' -> '{bin_target}'")
@@ -189,7 +186,7 @@ class Status:
     def deactivate_package_binaries(self, package: str):
         self.logger.info(f"deactivating '{package}' binaries")
         binaries = self.by_package[package].binaries
-        with utils.AtomicChange(BIN_DIR) as bin_dir:
+        with utils.AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
                 bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
                 if not bin_link.exists():
@@ -219,7 +216,7 @@ def install_package(package: str, logger: logging.Logger, **_):
     package_binaries = run_package_script(package, logger)
 
     with status:
-        status.activate_package_entry(package, [str(b) for b in package_binaries])
+        status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
 @tasks.task_function
@@ -247,7 +244,7 @@ def update_package(package: str, logger: logging.Logger, **_):
     package_binaries = run_package_script(package, logger)
 
     with status:
-        status.activate_package_entry(package, [str(b) for b in package_binaries])
+        status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
 @tasks.task_function
@@ -284,8 +281,7 @@ STATUS_YAML.touch()
 
 def check_packages(packages: list[str]) -> None:
     for package in packages:
-        module_name = f"{__name__}.packages.{package}"
-        if importlib.util.find_spec(module_name) is None:
+        if not vulpix_library.check_package(package, "manual"):
             raise InvalidPackage(package, "manual")
 
 def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
