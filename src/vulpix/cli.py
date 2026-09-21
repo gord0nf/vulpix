@@ -1,17 +1,18 @@
 import sys
 import os
+import re
 import logging
 import argparse
-import re
+import subprocess
 from pathlib import Path
 from typing import Literal
 from dataclasses import astuple
-import subprocess
 
 from vulpix import __version__, env, VulpixError, core
 from vulpix.core import managers, tasks
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.managers import PackageDiff
+from vulpix.task_section import TaskSection
 
 def regex_arg(arg: str) -> re.Pattern[str]:
     try:
@@ -60,7 +61,8 @@ def build_package_filter(
     return filter_package_changes
 
 def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
-    with tasks.ThreadedTaskQueue(blueprint.settings.threads, logger) as task_queue:
+    with TaskSection("package management", blueprint, logger) as section:
+        #section.show_tasks = re.compile("^manager")
         for manager_id, packages in blueprint.packages.items():
             manager = managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -72,7 +74,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
                 logger.warning(f"no regex matches, skipping '{manager_id}' package management")
                 continue
 
-            task_queue.run_task(f"{manager_id} manager", manager.apply_changes, diff)
+            section.run_task(f"manager {manager_id}", manager.apply_changes, diff)
 
 def package_config_section(pakage_filter: re.Pattern):
     pass

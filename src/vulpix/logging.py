@@ -1,5 +1,7 @@
-import shutil
 import sys
+import shutil
+import threading
+
 from logging import *
 
 from vulpix import env
@@ -20,10 +22,11 @@ class ColoredLogFormatter(Formatter):
 
 FILE_FORMATTER = Formatter("%(asctime)s %(threadName)s [%(levelname)s]: %(message)s")
 CONSOLE_FORMATTER = ColoredLogFormatter("%(levelname)s> %(message)s")
+
+console_lock = threading.RLock()
  
 def get_logger(log_name: str, verbose: bool = False, log_file: bool = True) -> Logger:
     logger = getLogger(log_name)
-    logger.verbose = verbose
     logger.setLevel(DEBUG)
 
     if log_file:
@@ -35,6 +38,27 @@ def get_logger(log_name: str, verbose: bool = False, log_file: bool = True) -> L
     console_handler = StreamHandler(sys.stderr)
     console_handler.setFormatter(CONSOLE_FORMATTER)
     console_handler.setLevel(DEBUG if verbose else INFO)
+    console_handler.lock = console_lock
     logger.addHandler(console_handler)
 
     return logger
+
+def _is_console_handler(handler: Handler) -> bool:
+    return isinstance(handler, StreamHandler) and handler.stream == sys.stderr
+
+def logger_is_verbose(logger: Logger) -> bool:
+    for handler in logger.handlers:
+        if _is_console_handler(handler) and handler.level <= DEBUG:
+            return True
+    return False
+
+def hide_logger(logger: Logger):
+    for handler in logger.handlers:
+        if _is_console_handler(handler):
+            logger.removeHandler(handler)
+
+def console_log_prefix(logger: Logger, prefix: str):
+    for handler in logger.handlers:
+        if _is_console_handler(handler) and handler.formatter:
+            old_fmt = handler.formatter._fmt
+            handler.setFormatter(ColoredLogFormatter(prefix + old_fmt))

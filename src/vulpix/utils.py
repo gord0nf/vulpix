@@ -1,6 +1,7 @@
 import os
 import stat
 import shutil
+import threading
 import subprocess
 from logging import Logger
 from pathlib import Path
@@ -152,3 +153,19 @@ class Colors:
             kernel32 = __import__("ctypes").windll.kernel32
             kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
             del kernel32
+
+class Broadcast:
+    _event: threading.Event
+    _lock: threading.Lock
+
+    def __init__(self):
+        self._event = threading.Event()
+        self._lock = threading.Lock()
+
+    def broadcast(self):
+        with self._lock:
+            self._event.set()
+            self._event.clear()
+
+    def wait(self):
+        return self._event.wait()

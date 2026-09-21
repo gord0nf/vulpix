@@ -1,10 +1,9 @@
 import queue
 import threading
-import logging
 from typing import Callable, Protocol
 
-from vulpix import VulpixError
-from vulpix.logging import get_logger
+from vulpix import VulpixError, utils
+from vulpix.logging import Logger, LoggerAdapter, get_logger, logger_is_verbose, console_log_prefix
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 
@@ -18,10 +17,10 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     # params like args, kwargs, task_name, task_queue
     type TaskFunction = Callable[[tuple, dict, str, ThreadedTaskQueue], BaseException | None]
 
-    logger: logging.Logger
+    logger: Logger
     threads: list[WorkerThread]
     exit_event: threading.Event
-    task_completed_event: threading.Event
+    done_broadcast: utils.Broadcast
     completed_tasks: dict[str, bool]  # task_name: was_successful
     completed_tasks_lock: threading.Lock
 
@@ -29,38 +28,49 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         self.logger.debug(f"adding task '{name}', {f.__name__}")
         self.put((name, f, args, kwargs), block=True)
 
+    def _thread_should_die(self):
+        return self.exit_event.is_set() and self.empty() and self.unfinished_tasks == 0
+
+    def _get_task_logger(self, task_name: str) -> Logger:
+        logger = get_logger(f"tasks/{task_name}", verbose=logger_is_verbose(self.logger))
+        console_log_prefix(logger, f"[{task_name}] ")
+        return logger
+
     class WorkerThread(threading.Thread):
         q: ThreadedTaskQueue
+        current_task: str | None
 
         def __init__(self, q: ThreadedTaskQueue):
             super().__init__()
             self.q = q
+            self.current_task = None
 
         def run(self):
             while True:
                 try:
-                    task_name, f, args, kwargs = self.q.get(timeout=0.2)
+                    self.current_task, f, args, kwargs = self.q.get(timeout=0.2)
                 except queue.Empty:
-                    if self.q.exit_event.is_set() and self.q.empty() and self.q.unfinished_tasks == 0:
+                    if self.q._thread_should_die():
                         break
                     continue
 
-                self.q.logger.debug(f"task starting: {task_name}")
+                self.q.logger.debug(f"task starting: {self.current_task}")
 
-                error = f(args, kwargs, task_name=task_name, task_queue=self.q)
+                error = f(args, kwargs, task_name=self.current_task, task_queue=self.q)
 
                 self.q.task_done()
-                self.q.logger.debug(f"task exited: {task_name} (exc: {error})")
+                self.q.logger.debug(f"task exited: {self.current_task} (exc: {error})")
                 with self.q.completed_tasks_lock:
-                    self.q.completed_tasks[task_name] = error is None
-                self.q.task_completed_event.set()
+                    self.q.completed_tasks[self.current_task] = error is None
+                self.current_task = None
+                self.q.done_broadcast.broadcast()
 
-    def __init__(self, n_threads: int, logger: logging.Logger) -> None:
+    def __init__(self, n_threads: int, logger: Logger) -> None:
         super().__init__(n_threads)
         self.logger = logger
         self.threads = []
         self.exit_event = threading.Event()
-        self.task_completed_event = threading.Event()
+        self.done_broadcast = utils.Broadcast()
         self.completed_tasks = {}
         self.completed_tasks_lock = threading.Lock()
 
@@ -85,10 +95,9 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         """holds until the target tasks all exist in self.completed_tasks"""
         satisfied = False
         while not satisfied:
-            self.task_completed_event.wait()
+            self.done_broadcast.wait()
             with self.completed_tasks_lock: # immediately get lock
                 satisfied = all(t in self.completed_tasks for t in tasks)
-                self.task_completed_event.clear()
 
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
@@ -96,13 +105,7 @@ def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     def wrapped_function(args: tuple, kwargs: dict, task_name: str, task_queue: ThreadedTaskQueue):
         kwargs["name"] = task_name
         kwargs["queue"] = task_queue
-
-        # logger with prefix
-        class PrefixAdapter(logging.LoggerAdapter):
-            def process(self, msg, kwargs):
-                return f"[{task_name}] {msg}", kwargs
-        logger = get_logger(f"tasks/{task_name}", verbose=task_queue.logger.verbose)
-        kwargs["logger"] = PrefixAdapter(logger)
+        kwargs["logger"] = task_queue._get_task_logger(task_name)
 
         error: BaseException | None = None
         try:
