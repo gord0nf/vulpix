@@ -60,7 +60,8 @@ def build_package_filter(
     return filter_package_changes
 
 def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
-    with TaskSection("package management", blueprint, logger) as section:
+    section = TaskSection("package management", blueprint, logger)
+    with section:
         for manager_id, packages in blueprint.packages.items():
             manager = managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -72,7 +73,11 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
                 logger.warning(f"no regex matches, skipping '{manager_id}' package management")
                 continue
 
-            section.run_task(f"management[{manager_id}]", manager.apply_changes, diff)
+            section.run_task(f"manager[{manager_id}]", manager.apply_changes, diff)
+
+    if section.tasks_failed:
+        logger.warning('some package tasks failed')
+        logger.warning('run `vulpix replay <task>` to check task logs')
 
 def package_config_section(pakage_filter: re.Pattern):
     pass

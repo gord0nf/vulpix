@@ -1,5 +1,6 @@
 import sys
 import re
+import random
 import threading
 from blessed import Terminal
 from contextlib import AbstractContextManager
@@ -15,9 +16,19 @@ def sugary(title: str, color1: function, color2: function, color3: function) -> 
     remainder = color3(" " * (term.width - term.length(title)))
     return term.black(title + remainder)
 
+def task_summary(completed_tasks: dict[str, bool]) -> str:
+    mark = term.red("failed")
+    failed = [f"  - {task} ({mark})" for task, success in completed_tasks.items() if not success]
+    succeeded = [f"  - {task}" for task, success in completed_tasks.items() if success]
+    lines = [*failed, *succeeded]
+    lines.sort()
+    return "\n".join(lines) + "\n"
+
 class TaskSection(ThreadedTaskQueue):
+    name: str
     alt_screen: bool = True
     show_tasks: re.Pattern = re.compile(".*")
+    tasks_failed: bool
 
     header_title: str
     footer_title: str
@@ -29,6 +40,7 @@ class TaskSection(ThreadedTaskQueue):
 
     def __init__(self, name: str, blueprint: Blueprint, logger: logging.Logger):
         super().__init__(blueprint.settings.threads, logger)
+        self.name = name
         self.alt_screen = blueprint.settings.alt_screen
         self.header_title = sugary(name, term.on_turquoise, term.on_aquamarine3, term.on_teal)
         self.footer_title = sugary("tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4)
@@ -76,6 +88,9 @@ class TaskSection(ThreadedTaskQueue):
             self._update_footer()
 
     def __enter__(self):
+        em = random.choice(["(┬┬﹏┬┬)", "(^人^)", "(￣︿￣)"])
+        self.logger.info(term.orchid(em) + " " + term.maroon1(self.name.upper()))
+
         # init task section screen
         if self.alt_screen:
             self.logger.info('entering alt screen')
@@ -97,4 +112,8 @@ class TaskSection(ThreadedTaskQueue):
         if self.alt_screen:
             self._scroll_region.__exit__(*exc_args)
             self._fullscreen.__exit__(*exc_args)
+
+        self.tasks_failed = any(not status for status in self.completed_tasks.values())
+        em = term.red("＞︿＜") if self.tasks_failed else term.green("(✿ ◠‿◠)")
+        print(f"[{em}] summary:\n" + task_summary(self.completed_tasks))
         return return_value

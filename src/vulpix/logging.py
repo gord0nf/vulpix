@@ -32,7 +32,7 @@ def get_logger(log_name: str, verbose: bool = False, log_file: bool = True) -> L
     if log_file:
         log_path = env.LOG.joinpath(log_name + ".log")
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = FileHandler(log_path)
+        file_handler = FileHandler(log_path, encoding="utf-16")
         file_handler.setLevel(DEBUG)
         file_handler.setFormatter(FILE_FORMATTER)
         logger.addHandler(file_handler)
