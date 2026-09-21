@@ -33,7 +33,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 
     def _get_task_logger(self, task_name: str) -> Logger:
         logger = get_logger(f"tasks/{task_name}", verbose=logger_is_verbose(self.logger))
-        console_log_prefix(logger, f"[{task_name}] ")
+        console_log_prefix(logger, f"\t{task_name} ")
         return logger
 
     class WorkerThread(threading.Thread):

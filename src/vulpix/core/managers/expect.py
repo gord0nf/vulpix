@@ -46,7 +46,7 @@ def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
 @tasks.task_function
 def apply_changes(diff: PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
     for package in diff.to_install:
-        task_name = f"install {package}@expect"
+        task_name = f"install[{package}@expect]"
         if template_exists(package):
             queue.run_task(task_name, check_template, package)
         elif package.endswith('!'):

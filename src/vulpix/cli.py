@@ -62,7 +62,6 @@ def build_package_filter(
 
 def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
     with TaskSection("package management", blueprint, logger) as section:
-        #section.show_tasks = re.compile("^manager")
         for manager_id, packages in blueprint.packages.items():
             manager = managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -74,7 +73,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
                 logger.warning(f"no regex matches, skipping '{manager_id}' package management")
                 continue
 
-            section.run_task(f"manager {manager_id}", manager.apply_changes, diff)
+            section.run_task(f"management[{manager_id}]", manager.apply_changes, diff)
 
 def package_config_section(pakage_filter: re.Pattern):
     pass

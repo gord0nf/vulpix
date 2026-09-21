@@ -300,22 +300,22 @@ def apply_changes(diff: PackageDiff, queue: tasks.ThreadedTaskQueue, **_) -> Non
     spawned_tasks: list[str] = []
 
     for package in diff.to_uninstall:
-        task_name = f"uninstall {package}@manual"
+        task_name = f"uninstall[{package}@manual]"
         queue.run_task(task_name, uninstall_package, package)
         spawned_tasks.append(task_name)
     for package in diff.to_reinstall:
-        task_name = f"reinstall {package}@manual"
+        task_name = f"reinstall[{package}@manual]"
         queue.run_task(task_name, reinstall_package, package)
         spawned_tasks.append(task_name)
     for package in diff.to_install:
-        task_name = f"install {package}@manual"
+        task_name = f"install[{package}@manual]"
         queue.run_task(task_name, install_package, package)
         spawned_tasks.append(task_name)
     for package in diff.to_update:
-        task_name = f"update {package}@manual"
+        task_name = f"update[{package}@manual]"
         queue.run_task(task_name, update_package, package)
         spawned_tasks.append(task_name)
 
     # postsetup garbage_collection
     queue.wait_for_tasks(spawned_tasks)
-    queue.run_task("postsetup manual", garbage_collection)
+    queue.run_task("postsetup[manual]", garbage_collection)
