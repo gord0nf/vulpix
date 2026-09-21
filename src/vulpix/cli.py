@@ -1,14 +1,13 @@
 import sys
 import os
 import re
-import logging
 import argparse
 import subprocess
 from pathlib import Path
 from typing import Literal
 from dataclasses import astuple
 
-from vulpix import __version__, env, VulpixError, core
+from vulpix import __version__, env, VulpixError, core, logging
 from vulpix.core import managers, tasks
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.managers import PackageDiff
@@ -188,6 +187,7 @@ class Cli(argparse.Namespace):
         parser.parse_args(namespace=self)
 
     def sync_command(self, blueprint_path: Path):
+        logging.clear_logs()
         blueprint = parse_blueprint(blueprint_path, self.logger)
 
         # no opts = --clean --apply --config
@@ -204,9 +204,11 @@ class Cli(argparse.Namespace):
             package_config_section(self.config)
 
     def dotfiles_command(self, blueprint_path: Path):
+        logging.clear_logs()
         pass
 
     def blueprint_command(self, blueprint: Path):
+        logging.clear_logs()
         if self.edit:
             blueprint.parent.mkdir(parents=True, exist_ok=True)
             default_editor = 'notepad' if env.OS == 'windows' else 'nano'

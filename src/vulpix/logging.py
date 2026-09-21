@@ -30,7 +30,9 @@ def get_logger(log_name: str, verbose: bool = False, log_file: bool = True) -> L
     logger.setLevel(DEBUG)
 
     if log_file:
-        file_handler = FileHandler(env.LOG.joinpath(log_name + ".log"))
+        log_path = env.LOG.joinpath(log_name + ".log")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = FileHandler(log_path)
         file_handler.setLevel(DEBUG)
         file_handler.setFormatter(FILE_FORMATTER)
         logger.addHandler(file_handler)
@@ -62,3 +64,13 @@ def console_log_prefix(logger: Logger, prefix: str):
         if _is_console_handler(handler) and handler.formatter:
             old_fmt = handler.formatter._fmt
             handler.setFormatter(ColoredLogFormatter(prefix + old_fmt))
+
+# main is an exception because it represents per run logs that need to be cleared every run, no
+# matter what cli.py wants to do (e.g. replaying logs)
+MAIN_LOG_FILE = env.LOG / "main.log"
+MAIN_LOG_FILE.unlink(missing_ok=True)
+
+def clear_logs():
+    for item in env.LOG.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
