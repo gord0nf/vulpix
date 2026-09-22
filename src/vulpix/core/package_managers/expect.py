@@ -13,43 +13,43 @@ three types of package verification:
 
 from logging import Logger
 
-from vulpix import VulpixError
-from vulpix.utils import command_exists
-from vulpix.core import tasks
-from vulpix.core.package_managers._utils import PackageDiff
+from vulpix.utils import VulpixError, command_exists
+from vulpix.core.tasks import task_function, ThreadedTaskQueue
+from vulpix.core.package_managers import PackageManager
 
 def template_exists(name: str) -> bool:
     pass # TODO
 
-@tasks.task_function
+@task_function
 def check_template(package: str, logger: Logger, **_):
     pass # TODO
 
-@tasks.task_function
+@task_function
 def check_command(package: str, logger: Logger, **_):
     if not command_exists(package):
         raise VulpixError(f"command doesn't exist: {package}")
     logger.info(f"command exists: {package}")
 
-@tasks.task_function
+@task_function
 def check_force(package: str, logger: Logger, **_):
     logger.info(f"force check: {package}")
 
-# exports -----------------------------------------------------------------------------------------
+class ExpectManager(PackageManager):
+    def check_packages(self, *_) -> None:
+        pass # expect doesn't have strict packages, see above
 
-def check_packages(packages: list[str]) -> None:
-    pass # expect doesn't have strict packages, see above
+    def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
+        return self.PackageDiff(to_install=blueprint_packages)
 
-def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
-    return PackageDiff(to_install=blueprint_packages)
+    @task_function
+    def apply_changes(self, diff: self.PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
+        for package in diff.to_install:
+            task_name = f"install[{package}@expect]"
+            if template_exists(package):
+                queue.run_task(task_name, check_template, package)
+            elif package.endswith('!'):
+                queue.run_task(task_name, check_force, package)
+            else:
+                queue.run_task(task_name, check_command, package)
 
-@tasks.task_function
-def apply_changes(diff: PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
-    for package in diff.to_install:
-        task_name = f"install[{package}@expect]"
-        if template_exists(package):
-            queue.run_task(task_name, check_template, package)
-        elif package.endswith('!'):
-            queue.run_task(task_name, check_force, package)
-        else:
-            queue.run_task(task_name, check_command, package)
+package_manager_class = ExpectManager

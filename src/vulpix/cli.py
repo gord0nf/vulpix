@@ -8,8 +8,9 @@ from typing import Literal
 from dataclasses import astuple
 
 from vulpix import __version__, env, VulpixError, core, logging
-from vulpix.core import package_managers, tasks
+from vulpix.core import tasks
 from vulpix.core.blueprint import Blueprint
+from vulpix.core.package_managers import get_package_manager, PackageManager
 from vulpix.task_section import TaskSection, term
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -30,7 +31,7 @@ def build_package_filter(
     clean: re.Pattern | None,
     reinstall: re.Pattern | None
 ) -> Callable:
-    def filter_package_changes(manager: str, changes: package_managers.PackageDiff):
+    def filter_package_changes(manager: str, changes: PackageManager.PackageDiff):
         def filter_packages(packages: list[str], regex: re.Pattern, negate=False) -> list[str]:
             if negate:
                 return [p for p in packages if not re.match(regex, f"{p}@{manager}")]
@@ -62,7 +63,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
     section = TaskSection("package management", blueprint, logger)
     with section:
         for manager_id, packages in blueprint.packages.items():
-            manager = package_managers.get_manager(manager_id)
+            manager = get_package_manager(manager_id)
             diff = manager.get_package_diff(packages)
             logger.debug(f"{manager_id}: {diff}")
 

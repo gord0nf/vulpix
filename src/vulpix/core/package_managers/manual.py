@@ -36,7 +36,6 @@ directories containing binaries, seperated by newlines. (these become part of th
 """
 
 import yaml
-import logging
 import dacite
 from filelock import FileLock, Timeout
 from dataclasses import dataclass, asdict
@@ -45,9 +44,9 @@ from pathlib import Path
 from typing import Callable, List
 
 import vulpix_library
-from vulpix import env, VulpixError, utils
-from vulpix.core import tasks
-from vulpix.core.package_managers._utils import PackageDiff, InvalidPackage
+from vulpix import VulpixError, env, utils, logging
+from vulpix.core.tasks import task_function, ThreadedTaskQueue
+from vulpix.core.package_managers import PackageManager
 
 ROOT_DIR = env.DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
@@ -56,14 +55,12 @@ STATUS_LOCK = FileLock(STATUS_YAML.with_suffix(".lock"))
 STATUS_TIMEOUT = 10
 N_GRACE_DAYS = 30 # number of days before deactivated packages are actually destroyed
 
-main_logger = logging.getLogger("main")
-
 type PackageScript = Callable[[str, logging.Logger], List[str]]
 
 def get_package_script(package: str) -> PackageScript:
     module = vulpix_library.get_package(package, "manual")
     if not module:
-        raise InvalidPackage(package, "manual")
+        raise PackageManager.InvalidPackage(package, "manual")
     main = getattr(module, "main", None)
     if not main or not callable(main):
         raise Exception(f"manual package script for '{package}' did not export main() correctly")
@@ -200,7 +197,7 @@ def destory_package(package: str, status: Status):
     utils.rm_fr(get_package_install_dir(package))
     status.destroy_package_entry(package)
 
-@tasks.task_function
+@task_function
 def install_package(package: str, logger: logging.Logger, **_):
     """if package not installed, will run install script, then enable the package"""
     logger.info(f"installing package '{package}'")
@@ -216,7 +213,7 @@ def install_package(package: str, logger: logging.Logger, **_):
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
-@tasks.task_function
+@task_function
 def uninstall_package(package: str, logger: logging.Logger, **_):
     """will disable the installation"""
     logger.info(f"uninstalling package '{package}'")
@@ -227,7 +224,7 @@ def uninstall_package(package: str, logger: logging.Logger, **_):
         else:
             logger.info(f"'{package}' not installed or already deactivated")
 
-@tasks.task_function
+@task_function
 def update_package(package: str, logger: logging.Logger, **_):
     """if package installed, will run install script, then enable the package"""
     logger.info(f"updating package '{package}'")
@@ -244,8 +241,8 @@ def update_package(package: str, logger: logging.Logger, **_):
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
-@tasks.task_function
-def reinstall_package(package: str, logger: logging.Logger, queue: tasks.ThreadedTaskQueue, **_):
+@task_function
+def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQueue, **_):
     """will destroy the installation, then run install script, then enable the package"""
     logger.info(f"reinstalling package '{package}'")
     with Status(logger) as status:
@@ -257,7 +254,7 @@ def reinstall_package(package: str, logger: logging.Logger, queue: tasks.Threade
     if not queue.completed_tasks[task_name]:
         raise VulpixError(f"spawned install task '{task_name}' failed")
 
-@tasks.task_function
+@task_function
 def garbage_collection(logger: logging.Logger, **_):
     """actually destroys packages that have been disabled for too long"""
     logger.info('checking for garbage packages')
@@ -269,53 +266,59 @@ def garbage_collection(logger: logging.Logger, **_):
             logger.info(f"'{package}' for garbage collection")
             destory_package(package, status)
 
-# exports -----------------------------------------------------------------------------------------
+class ManualManager(PackageManager):
+    main_logger: logging.Logger
 
-# verify stuff exists
-ROOT_DIR.mkdir(parents=True, exist_ok=True)
-BIN_DIR.mkdir(parents=True, exist_ok=True)
-STATUS_YAML.touch()
+    def __init__(self):
+        # verify stuff exists
+        ROOT_DIR.mkdir(parents=True, exist_ok=True)
+        BIN_DIR.mkdir(parents=True, exist_ok=True)
+        STATUS_YAML.touch()
+        
+        self.main_logger = logging.getLogger("main")
 
-def check_packages(packages: list[str]) -> None:
-    for package in packages:
-        if not vulpix_library.check_package(package, "manual"):
-            raise InvalidPackage(package, "manual")
+    def check_packages(self, packages: list[str]) -> None:
+        for package in packages:
+            if not vulpix_library.check_package(package, "manual"):
+                raise self.InvalidPackage(package, "manual")
 
-def get_package_diff(blueprint_packages: list[str]) -> PackageDiff:
-    diff = PackageDiff()
+    def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
+        diff = self.PackageDiff()
 
-    with Status(main_logger) as status:
-        for package, pstatus in status.by_package.items():
-            if package in blueprint_packages:
-                diff.to_update.append(package)
-            elif pstatus.active: 
-                diff.to_uninstall.append(package)
-        for package in blueprint_packages:
-            if package not in status.by_package:
-                diff.to_install.append(package)
-    return diff
+        with Status(self.main_logger) as status:
+            for package, pstatus in status.by_package.items():
+                if package in blueprint_packages:
+                    diff.to_update.append(package)
+                elif pstatus.active: 
+                    diff.to_uninstall.append(package)
+            for package in blueprint_packages:
+                if package not in status.by_package:
+                    diff.to_install.append(package)
+        return diff
 
-@tasks.task_function
-def apply_changes(diff: PackageDiff, queue: tasks.ThreadedTaskQueue, **_) -> None:
-    spawned_tasks: list[str] = []
+    @task_function
+    def apply_changes(self, diff: self.PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
+        spawned_tasks: list[str] = []
 
-    for package in diff.to_uninstall:
-        task_name = f"uninstall[{package}@manual]"
-        queue.run_task(task_name, uninstall_package, package)
-        spawned_tasks.append(task_name)
-    for package in diff.to_reinstall:
-        task_name = f"reinstall[{package}@manual]"
-        queue.run_task(task_name, reinstall_package, package)
-        spawned_tasks.append(task_name)
-    for package in diff.to_install:
-        task_name = f"install[{package}@manual]"
-        queue.run_task(task_name, install_package, package)
-        spawned_tasks.append(task_name)
-    for package in diff.to_update:
-        task_name = f"update[{package}@manual]"
-        queue.run_task(task_name, update_package, package)
-        spawned_tasks.append(task_name)
+        for package in diff.to_uninstall:
+            task_name = f"uninstall[{package}@manual]"
+            queue.run_task(task_name, uninstall_package, package)
+            spawned_tasks.append(task_name)
+        for package in diff.to_reinstall:
+            task_name = f"reinstall[{package}@manual]"
+            queue.run_task(task_name, reinstall_package, package)
+            spawned_tasks.append(task_name)
+        for package in diff.to_install:
+            task_name = f"install[{package}@manual]"
+            queue.run_task(task_name, install_package, package)
+            spawned_tasks.append(task_name)
+        for package in diff.to_update:
+            task_name = f"update[{package}@manual]"
+            queue.run_task(task_name, update_package, package)
+            spawned_tasks.append(task_name)
 
-    # postsetup garbage_collection
-    queue.wait_for_tasks(spawned_tasks)
-    queue.run_task("postsetup[manual]", garbage_collection)
+        # postsetup garbage_collection
+        queue.wait_for_tasks(spawned_tasks)
+        queue.run_task("postsetup[manual]", garbage_collection)
+
+package_manager_class = ManualManager

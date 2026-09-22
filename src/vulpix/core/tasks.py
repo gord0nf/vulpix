@@ -61,9 +61,11 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                         break
                     continue
 
-                self.q.logger.debug(f"task starting: {self.current_task}")
+                self.q.logger.debug(f"task starting: {self.current_task} (args={args}, kwargs={kwargs})")
 
-                error = f(args, kwargs, task_name=self.current_task, task_queue=self.q)
+                # NOTE: only *args (and not kwargs) has to be expanded to potentially accept `self`
+                # for class methods (if ya know what i mean...)
+                error = f(*args, kwargs=kwargs, task_name=self.current_task, task_queue=self.q)
                 success = error is None
 
                 self.q.task_done()
@@ -110,7 +112,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
 
-    def wrapped_function(args: tuple, kwargs: dict, task_name: str, task_queue: ThreadedTaskQueue):
+    def wrapped_function(*args: tuple, kwargs: dict, task_name: str, task_queue: ThreadedTaskQueue):
         kwargs["name"] = task_name
         kwargs["queue"] = task_queue
         kwargs["logger"] = task_queue._get_task_logger(task_name)

@@ -2,7 +2,7 @@ import os
 from typing import Literal, Dict, List
 from dataclasses import dataclass, field
 
-from vulpix.core import package_managers
+from vulpix.core.package_managers import get_package_manager, PackageManager
 
 _cpu_count = os.cpu_count()
 
@@ -28,10 +28,10 @@ class Blueprint:
         # verify valid managers and packages
         for manager_id, packages in self.packages.items():
             try:
-                manager = package_managers.get_manager(manager_id)
+                manager = get_package_manager(manager_id)
                 manager.check_packages(packages)
-            except package_managers.ManagerUnsupported as e:
+            except PackageManager.ManagerUnsupported as e:
                 raise ValueError(f"unsupported manager '{e.manager}': {e.message}")
-            except package_managers.InvalidPackage as e:
+            except PackageManager.InvalidPackage as e:
                 raise ValueError(f"invalid package '{e.package}' for '{e.manager}' manager")
 
