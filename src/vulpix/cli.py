@@ -129,7 +129,7 @@ class Cli(argparse.Namespace):
             type=str, metavar="PATH",
             help="specify blueprint.yaml path, otherwise searches default locations")
 
-        subparsers = parser.add_subparsers(dest="command", required=True)
+        subparsers = parser.add_subparsers(dest="command")
 
         # sync command
         sync_desc = "syncs system/user with the blueprint."
@@ -190,6 +190,9 @@ class Cli(argparse.Namespace):
 
         # actaually parse it!
         parser.parse_args(namespace=self)
+
+        if not self.command:
+            parser.exit(status=1, message=parser.format_help())
 
     def sync_command(self, blueprint_path: Path):
         logging.clear_logs()
