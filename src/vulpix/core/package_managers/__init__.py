@@ -3,7 +3,7 @@ from logging import Logger
 
 from vulpix import VulpixError
 from vulpix.core import tasks
-from vulpix.core.managers._utils import *
+from vulpix.core.package_managers._utils import *
 
 class Manager:
     def check_packages(packages: list[str]) -> None:

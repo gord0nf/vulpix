@@ -1,6 +1,6 @@
 """
 all 'expect' does is check if the package is already installed (it's not a "true" package manager).
-see entry in `docs/managers.md` for more details.
+see entry in `docs/package_managers.md` for more details.
 
 three types of package verification:
 
@@ -16,7 +16,7 @@ from logging import Logger
 from vulpix import VulpixError
 from vulpix.utils import command_exists
 from vulpix.core import tasks
-from vulpix.core.managers._utils import PackageDiff
+from vulpix.core.package_managers._utils import PackageDiff
 
 def template_exists(name: str) -> bool:
     pass # TODO

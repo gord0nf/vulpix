@@ -47,7 +47,7 @@ from typing import Callable, List
 import vulpix_library
 from vulpix import env, VulpixError, utils
 from vulpix.core import tasks
-from vulpix.core.managers._utils import PackageDiff, InvalidPackage
+from vulpix.core.package_managers._utils import PackageDiff, InvalidPackage
 
 ROOT_DIR = env.DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
