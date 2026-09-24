@@ -59,11 +59,10 @@ def hide_logger(logger: Logger):
         if _is_console_handler(handler):
             logger.removeHandler(handler)
 
-def console_log_prefix(logger: Logger, prefix: str):
+def set_console_log_fmt(logger: Logger, fmt: str):
     for handler in logger.handlers:
         if _is_console_handler(handler) and handler.formatter:
-            old_fmt = handler.formatter._fmt
-            handler.setFormatter(ColoredLogFormatter(prefix + old_fmt))
+            handler.setFormatter(ColoredLogFormatter(fmt))
 
 # main is an exception because it represents per run logs that need to be cleared every run, no
 # matter what cli.py wants to do (e.g. replaying logs)

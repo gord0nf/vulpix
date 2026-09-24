@@ -3,7 +3,9 @@ import threading
 from typing import Callable, Protocol
 
 from vulpix import VulpixError, utils
-from vulpix.logging import Logger, LoggerAdapter, get_logger, logger_is_verbose, console_log_prefix
+from vulpix.logging import (
+    Logger, LoggerAdapter, get_logger, logger_is_verbose, set_console_log_fmt
+)
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 
@@ -33,12 +35,17 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 
     def _get_task_logger(self, task_name: str) -> Logger:
         logger = get_logger(f"tasks/{task_name}", verbose=logger_is_verbose(self.logger))
-        console_log_prefix(logger, f"\t{task_name} ")
+        name = utils.Colors.CYAN + task_name + utils.Colors.RESET
+        set_console_log_fmt(logger, f"\t%(levelname)s> {name}> %(message)s")
         return logger
 
     class WorkerThread(threading.Thread):
         q: ThreadedTaskQueue
         current_task: str | None
+
+
+        DONE = utils.Colors.GREEN + "done" + utils.Colors.RESET
+        FAIL = utils.Colors.RED + "failed" + utils.Colors.RESET
 
         def __init__(self, q: ThreadedTaskQueue):
             super().__init__()
@@ -57,11 +64,12 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                 self.q.logger.debug(f"task starting: {self.current_task}")
 
                 error = f(args, kwargs, task_name=self.current_task, task_queue=self.q)
+                success = error is None
 
                 self.q.task_done()
-                self.q.logger.debug(f"task exited: {self.current_task} (exc: {error})")
+                self.q.logger.info(f"{self.current_task} ({self.DONE if success else self.FAIL})")
                 with self.q.completed_tasks_lock:
-                    self.q.completed_tasks[self.current_task] = error is None
+                    self.q.completed_tasks[self.current_task] = success
                 self.current_task = None
                 self.q.done_broadcast.broadcast()
 
