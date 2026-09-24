@@ -11,7 +11,7 @@ from vulpix import __version__, env, VulpixError, core, logging
 from vulpix.core import managers, tasks
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.managers import PackageDiff
-from vulpix.task_section import TaskSection
+from vulpix.task_section import TaskSection, term
 
 def regex_arg(arg: str) -> re.Pattern[str]:
     try:
@@ -109,11 +109,10 @@ class Cli(argparse.Namespace):
     log: re.Pattern | None = None
 
     def __init__(self):
+        cool_dude = term.orchid("b(￣▽￣)d")
         parser = argparse.ArgumentParser(
             prog="vulpix",
-            description="blueprint-driven system management/configuration tool.",
-            epilog="if run as root, applies changes at system level, else only applies at user " \
-                   "level. This also effects where it looks for app dirs (like configuration).")
+            description=f"blueprint-driven system management/configuration tool [ {cool_dude} ]")
         parser.add_argument(
             "-v", "--version",
             action='version', 
@@ -143,7 +142,7 @@ class Cli(argparse.Namespace):
             type=regex_arg, metavar="REGEX",
             nargs='?', const='.*', default=None,
             help="if any packages are in the blueprint but are not installed, they will be " \
-                 "installed. If any blueprint packages are already installed, they will be updated.")
+                 "installed. if any blueprint packages are already installed, they will be updated.")
         sync_parser.add_argument(
             "-x", "--clean",
             type=regex_arg, metavar="REGEX",
