@@ -1,85 +1,43 @@
 # vulpix
 
-a cross-platform manager that does magic based on a blueprint (a yaml file) that describes the
-desired state of the machine and/or user.
+a cross-platform, blueprint-driven system management/configuration tool.
 
-### features
+it uses `blueprint.yaml` to abstract two main things:
 
-if magic isn't specific enough for you:
-
-- installs/removes packages to align with the blueprint, optionally asyncronously (which makes it
-  pretty fast!)
-
-    - the goal is a functional, config-driven, atomic wrapper around package manager(s)
-    - since it's a wrapper around other managers, it's not perfect (for example, the apt
-      implementation isn't completely atomic)
-    - implements it own "manual" manager, which works really well if you don't want to rely on a
-      fancy package manager that you don't know what's actually happening behind the scenes...
+1. package management: abstracting over package managers (like apt, pip, pacman)
+2. configuration management: abstracting over package config managers
 
 > [!IMPORTANT]
 >
-> vulpix is a wrapper around common package managers (e.g. apt); it doesn't do the
-> installing/removing itself. although, it does implement a "manual" manager with custom install
-> scripts.
+> vulpix uses a plugin-like architecture for both package and config managers
+> ([read this](docs/managers.md)). basically, vulpix is just a pretty cli wrapper around other
+> package managers; it doesn't actually do any of the stuff. while it comes with common package
+> managers (apt, pip pacman, etc.) and a default config manager, you are encouraged to build
+> your own.
 
-- looks for optional dotfiles repo (specified in blueprint) and symlinks everything to correct
-  locations.
+some extra features:
 
-- allows config yaml in blueprint that you can use to config stuff functionally.
+- dotfiles setup: looks for optional dotfiles repo and symlinks everything to correct locations
+- multithreaded management (depending on manager support)
+- you can have a system-wide blueprint that gets run by the root/admin user, in addition to a
+  blueprint for specific users 
+    - for example, the `apt` manager cannot be used by non-root blueprint
 
-    - basically, config data defined in blueprint gets passed to custom config scripts that you have
-      to code, which should ideally configure stuff functionally (in other words, you are in charge
-      of the connection between config data in your blueprint and the actual config for the
-      software).
-    - a bunch of utility functions are also passed
-    - these "custom config scripts" can also be stored in your dotfiles repo.
+check out the [docs](docs/)!
 
-- you can have a root-level blueprint for system-wide packages/config (packages installed globally)
-  , in addition to packages/config for specific users (packages installed at user level). plus, you
-  can also have "profiles" for further differentiation at the user level.
+## installing
 
-## installation (bootstrapping)
+if you already have python installed, just:
 
-> [!NOTE]
->
-> dependencies:
->
-> - bash: primary language of vulpix so obvious dep; prerequisite for linux, installed automatically
->   for windows (see [below](#windows)) by bootstrap script
-> - yq: installed automatically by bootstrap script
+    pip install vulpix
 
-### linux
-
-run `bootstrap.sh` and follow prompts. this will clone or download this repo (depending on the
-availability of git, curl, or wget) to `/opt/vulpix` or `~/.local/opt/vulpix` (depending on root vs
-user install preference):
+or if not, you can run the bootstrap script, which installs python, then `pip install`s:
 
     curl -fsSL https://raw.githubusercontent.com/gord0nf/vulpix/refs/heads/main/bootstrap.sh | bash
 
-alternatively, clone this repo in the desired location and run `bootstrap.sh`.
-
-### windows
-
-run `bootstrap.ps1` and follow prompts. this will clone or download this repo (depending on the
-availability of git) to `$ProgramFiles\vulpix` or `$LOCALAPPDATA\Programs\vulpix` (depending on root
-vs user install preference):
+windows has its own bootstrap script:
 
     iwr -Uri "https://raw.githubusercontent.com/gord0nf/vulpix/refs/heads/main/bootstrap.ps1" | iex
-
-alternatively, clone this repo in the desired location and run `bootstrap.ps1`.
-
-alternatively, you can also use the [linux](#linux) installation if you have bash installed already.
-
-> [!NOTE]
->
-> if bootstrap.ps1 cannot find bash, it will install it via
-> [Git for Windows](https://git-scm.com/install/windows) (the main alternative is WSL, but that's
-> less efficient so it requires explicit setup).
-
-> [!WARNING]
->
-> windows hasn't fully been tested so there's likely lots of bugs... await v1.1 for windows-oriented
-> fixes/features.
 
 ## usage
 
