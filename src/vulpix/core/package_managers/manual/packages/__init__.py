@@ -1,9 +1,26 @@
 import sys
+import types
 import logging
 import subprocess
+import importlib
+import importlib.util
 from typing import Callable
 
 from vulpix import VulpixError
+
+# package interface -------------------------------------------------------------------------------
+
+def check_package(package: str) -> bool:
+    return importlib.util.find_spec(f"{__name__}.{package}") is not None
+
+def get_package(package: str) -> types.ModuleType | None:
+    try:
+        module = importlib.import_module(f".{package}", package=__name__)
+    except ModuleNotFoundError:
+        return None
+    return module
+
+# utils for package scripts -----------------------------------------------------------------------
 
 def simple_shell_wrapper(main: Callable[[str, logging.Logger], list[str]]):
     logging.basicConfig(level=logging.DEBUG)

@@ -69,7 +69,8 @@ def get_package_manager(id: str) -> PackageManager:
 
     try:
         module = importlib.import_module(f".{id}", package=__name__)
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
+        print(e)
         raise PackageManager.ManagerUnsupported(id, "manager does not exist")
 
     # verify class export

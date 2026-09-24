@@ -43,10 +43,11 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, List
 
-import vulpix_library
 from vulpix import VulpixError, env, utils, logging
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.core.package_managers import PackageManager
+
+from . import packages as library
 
 ROOT_DIR = env.DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
@@ -58,7 +59,7 @@ N_GRACE_DAYS = 30 # number of days before deactivated packages are actually dest
 type PackageScript = Callable[[str, logging.Logger], List[str]]
 
 def get_package_script(package: str) -> PackageScript:
-    module = vulpix_library.get_package(package, "manual")
+    module = library.get_package(package)
     if not module:
         raise PackageManager.InvalidPackage(package, "manual")
     main = getattr(module, "main", None)
@@ -279,7 +280,7 @@ class ManualManager(PackageManager):
 
     def check_packages(self, packages: list[str]) -> None:
         for package in packages:
-            if not vulpix_library.check_package(package, "manual"):
+            if not library.check_package(package):
                 raise self.InvalidPackage(package, "manual")
 
     def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
