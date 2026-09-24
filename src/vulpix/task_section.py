@@ -17,9 +17,9 @@ def sugary(title: str, color1: function, color2: function, color3: function) -> 
     return term.black(title + remainder)
 
 def task_summary(completed_tasks: dict[str, bool]) -> str:
-    mark = term.red("failed")
-    failed = [f"  - {task} ({mark})" for task, success in completed_tasks.items() if not success]
-    succeeded = [f"  - {task}" for task, success in completed_tasks.items() if success]
+    fmark, smark = term.red("failure"), term.green("success")
+    failed = [f"  - {task} ({fmark})" for task, success in completed_tasks.items() if not success]
+    succeeded = [f"  - {task} ({smark})" for task, success in completed_tasks.items() if success]
     lines = [*failed, *succeeded]
     lines.sort()
     return "\n".join(lines) + "\n"
@@ -113,7 +113,9 @@ class TaskSection(ThreadedTaskQueue):
             self._scroll_region.__exit__(*exc_args)
             self._fullscreen.__exit__(*exc_args)
 
+        # summary
         self.tasks_failed = any(not status for status in self.completed_tasks.values())
-        em = term.red("＞︿＜") if self.tasks_failed else term.green("(✿ ◠‿◠)")
-        print(f"[{em}] summary:\n" + task_summary(self.completed_tasks))
+        if len(self.completed_tasks) > 0:
+            em = term.red("＞︿＜") if self.tasks_failed else term.green("(✿ ◠‿◠)")
+            print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
         return return_value
