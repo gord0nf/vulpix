@@ -4,7 +4,7 @@ import threading
 
 from logging import *
 
-from vulpix import env
+from vulpix.core import env
 from vulpix.utils import Colors
 
 class ColoredLogFormatter(Formatter):

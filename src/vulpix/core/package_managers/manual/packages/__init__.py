@@ -6,7 +6,7 @@ import importlib
 import importlib.util
 from typing import Callable
 
-from vulpix import VulpixError
+from vulpix.core import VulpixError
 
 # package interface -------------------------------------------------------------------------------
 

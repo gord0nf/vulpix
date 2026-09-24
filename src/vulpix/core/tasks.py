@@ -2,7 +2,8 @@ import queue
 import threading
 from typing import Callable, Protocol
 
-from vulpix import VulpixError, utils
+from vulpix import utils
+from vulpix.core import VulpixError
 from vulpix.logging import (
     Logger, LoggerAdapter, get_logger, logger_is_verbose, set_console_log_fmt
 )

@@ -43,7 +43,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, List
 
-from vulpix import VulpixError, env, utils, logging
+from vulpix import utils, logging
+from vulpix.core import VulpixError, env
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.core.package_managers import PackageManager
 

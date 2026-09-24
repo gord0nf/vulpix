@@ -10,7 +10,7 @@ from logging import Logger
 import dacite
 import yaml
 
-from vulpix import VulpixError
+from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
 
 dacite_config = dacite.Config(strict=True)

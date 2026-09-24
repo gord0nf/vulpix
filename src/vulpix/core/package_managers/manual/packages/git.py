@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vulpix import env, VulpixError
+from vulpix.core import VulpixError, env
 from vulpix.logging import Logger
 from vulpix.core.package_managers.manual.packages import run_external_script, simple_shell_wrapper
 

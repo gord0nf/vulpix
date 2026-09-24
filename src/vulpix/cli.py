@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Literal
 from dataclasses import astuple
 
-from vulpix import __version__, env, VulpixError, core, logging
-from vulpix.core import tasks
+from vulpix import __version__, logging
+from vulpix.core import VulpixError, tasks, env
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.package_managers import get_package_manager, PackageManager
 from vulpix.task_section import TaskSection, term

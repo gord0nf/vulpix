@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from vulpix import env, VulpixError
 from vulpix.logging import Logger
+from vulpix.core import VulpixError, env
 from vulpix.core.package_managers.manual.packages import run_external_script, simple_shell_wrapper
 
 WINDOWS_SCRIPT = str(Path(__file__).resolve().parent / "python.ps1")

@@ -5,7 +5,8 @@ import threading
 from blessed import Terminal
 from contextlib import AbstractContextManager
 
-from vulpix import VulpixError, logging
+from vulpix import logging
+from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.tasks import ThreadedTaskQueue
 

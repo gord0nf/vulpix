@@ -6,7 +6,7 @@ import subprocess
 from logging import Logger
 from pathlib import Path
 
-from vulpix import *
+from vulpix.core import env
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None

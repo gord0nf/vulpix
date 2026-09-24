@@ -13,7 +13,8 @@ three types of package verification:
 
 from logging import Logger
 
-from vulpix.utils import VulpixError, command_exists
+from vulpix.utils import command_exists
+from vulpix.core import VulpixError
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.core.package_managers import PackageManager
 
