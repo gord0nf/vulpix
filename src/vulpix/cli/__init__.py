@@ -11,7 +11,7 @@ from vulpix import __version__
 from vulpix.core import VulpixError, tasks, env, logging
 from vulpix.core.blueprint import Blueprint
 from vulpix.package_managers import get_package_manager, PackageManager
-from vulpix.task_section import TaskSection, term
+from vulpix.cli.task_section import TaskSection, term
 
 def regex_arg(arg: str) -> re.Pattern[str]:
     try:
@@ -20,7 +20,7 @@ def regex_arg(arg: str) -> re.Pattern[str]:
         raise argparse.ArgumentTypeError(f"'{arg}' is not a valid regular expression.")
 
 def parse_blueprint(path: Path, logger: logging.Logger) -> Blueprint:
-    from vulpix.blueprint import expand_blueprint
+    from vulpix.cli.blueprint import expand_blueprint
    
     _, blueprint = expand_blueprint(path, logger)
     logger.debug(str(blueprint))
