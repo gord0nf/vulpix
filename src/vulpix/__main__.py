@@ -5,8 +5,6 @@ from vulpix.cli import Cli
 
 def main():
     cli = Cli()
-    cli.logger = logging.get_logger("main", verbose=cli.verbose)
-
     try:
         cli.main()
     except VulpixError as e:

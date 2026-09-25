@@ -9,7 +9,8 @@ import dacite
 import yaml
 from pathlib import Path
 
-from vulpix.core import VulpixError, logging
+from vulpix.core import VulpixError
+from vulpix.cli import logging
 from vulpix.core.blueprint import Blueprint
 
 dacite_config = dacite.Config(strict=True)

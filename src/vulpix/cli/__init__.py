@@ -8,7 +8,7 @@ from typing import Literal
 from dataclasses import astuple
 
 from vulpix import __version__
-from vulpix.core import VulpixError, tasks, env, logging
+from vulpix.core import VulpixError, tasks, env
 from vulpix.core.blueprint import Blueprint
 from vulpix.package_managers import get_package_manager, PackageManager
 from vulpix.cli.task_section import TaskSection, term
@@ -187,11 +187,15 @@ class Cli(argparse.Namespace):
                 nargs='?', default='.*',
                 help="filter log files")
 
-        # actaually parse it!
+        # actaually parse it! -----------------------------------------
         parser.parse_args(namespace=self)
-
         if not self.command:
             parser.exit(status=1, message=parser.format_help())
+
+        # main logger
+        self.logger = logging.getLogger("main")
+        logging.attach_log_file(self.logger)
+        logging.attach_console_logging(self.logger, verbose=self.verbose)
 
     def sync_command(self, blueprint_path: Path):
         logging.clear_logs()

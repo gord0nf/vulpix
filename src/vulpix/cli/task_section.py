@@ -2,14 +2,13 @@ import sys
 import re
 import random
 import threading
-from blessed import Terminal
 from contextlib import AbstractContextManager
 
-from vulpix.core import VulpixError, logging
+from vulpix.core import VulpixError
+from vulpix.cli import logging
+from vulpix.cli.logging import term, term_lock
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.tasks import ThreadedTaskQueue
-
-term = Terminal()
 
 def sugary(title: str, color1: function, color2: function, color3: function) -> str:
     title = color1(" ~(￣▽￣)~* ") + color2("   " + title.upper() + "   ")
@@ -25,6 +24,8 @@ def task_summary(completed_tasks: dict[str, bool]) -> str:
     return "\n".join(lines) + "\n"
 
 class TaskSection(ThreadedTaskQueue):
+    verbose: bool = False
+
     name: str
     alt_screen: bool = True
     show_tasks: re.Pattern = re.compile(".*")
@@ -37,22 +38,23 @@ class TaskSection(ThreadedTaskQueue):
     _fullscreen: AbstractContextManager
     _scroll_region: AbstractContextManager
 
-
     def __init__(self, name: str, blueprint: Blueprint, logger: logging.Logger):
         super().__init__(blueprint.settings.threads, logger)
         self.name = name
         self.alt_screen = blueprint.settings.alt_screen
+
         self.header_title = sugary(name, term.on_turquoise, term.on_aquamarine3, term.on_teal)
         self.footer_title = sugary("tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4)
         self.footer_height = min(blueprint.settings.threads + 1, term.height // 2) # +1 for title
+
         self.logger.debug(f"task_section footer height: {self.footer_height}")
         if self.footer_height <= 0:
             raise VulipxError("not enough height for task section footer")
 
     def _get_task_logger(self, task_name: str) -> logging.Logger:
         logger = super()._get_task_logger(task_name)
-        if self.alt_screen and not self.show_tasks.match(task_name):
-            logging.hide_logger(logger)
+        task_name = term.cyan(task_name)
+        logging.attach_console_logging(logger, self.verbose, prefix=("\t", f" {task_name}>"))
         return logger
 
     def _update_footer(self):
@@ -60,7 +62,8 @@ class TaskSection(ThreadedTaskQueue):
             running_tasks = [t.current_task for t in self.threads if t.current_task]
         n_running_tasks = len(running_tasks)
 
-        with logging.console_lock, term.location(0, term.height - self.footer_height):
+        with term_lock, term.location(0, term.height - self.footer_height):
+            label = term.yellow("running")
             for i in range(self.footer_height):
                 if n_running_tasks > 0:
                     if i == 0:
@@ -71,9 +74,14 @@ class TaskSection(ThreadedTaskQueue):
                     if i + 1 == self.footer_height and task_i + 1 < n_running_tasks:
                         sys.stdout.write(term.yellow("..."))
                     elif task_i < n_running_tasks:
-                        sys.stdout.write(term.yellow("running " + running_tasks[task_i]))
+                        sys.stdout.write(running_tasks[task_i] + f" ({label})")
                 sys.stdout.write(term.clear_eol + "\n\r")
             sys.stdout.flush()
+
+    def _post_task_callback(self, task_name: str, exc: Exception | None):
+        super()._post_task_callback(task_name, exc)
+        label = term.red("failed") if exc else term.green("succeeded")
+        self.logger.info(f"{task_name} ({label})")
 
     def run_task(self, name: str, f: TaskFunction, *args, **kwargs):
         """updates footer when task started"""

@@ -31,18 +31,17 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         return self.exit_event.is_set() and self.empty() and self.unfinished_tasks == 0
 
     def _get_task_logger(self, task_name: str) -> logging.Logger:
-        logger = logging.get_logger(f"tasks/{task_name}", verbose=logging.logger_is_verbose(self.logger))
-        name = utils.Colors.CYAN + task_name + utils.Colors.RESET
-        logging.set_console_log_fmt(logger, f"\t%(levelname)s> {name}> %(message)s")
+        logger = logging.getLogger(f"tasks/{task_name}")
+        logging.attach_log_file(logger)
         return logger
+    
+    def _post_task_callback(self, task_name: str, exc: Exception | None):
+        with self.completed_tasks_lock:
+            self.completed_tasks[task_name] = exc is None
 
     class WorkerThread(threading.Thread):
         q: ThreadedTaskQueue
         current_task: str | None
-
-
-        DONE = utils.Colors.GREEN + "done" + utils.Colors.RESET
-        FAIL = utils.Colors.RED + "failed" + utils.Colors.RESET
 
         def __init__(self, q: ThreadedTaskQueue):
             super().__init__()
@@ -63,12 +62,9 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                 # NOTE: only *args (and not kwargs) has to be expanded to potentially accept `self`
                 # for class methods (if ya know what i mean...)
                 error = f(*args, kwargs=kwargs, task_name=self.current_task, task_queue=self.q)
-                success = error is None
 
                 self.q.task_done()
-                self.q.logger.info(f"{self.current_task} ({self.DONE if success else self.FAIL})")
-                with self.q.completed_tasks_lock:
-                    self.q.completed_tasks[self.current_task] = success
+                self.q._post_task_callback(self.current_task, error)
                 self.current_task = None
                 self.q.done_broadcast.broadcast()
 
