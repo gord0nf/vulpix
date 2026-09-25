@@ -10,7 +10,7 @@ from dataclasses import astuple
 from vulpix import __version__
 from vulpix.core import VulpixError, tasks, env, logging
 from vulpix.core.blueprint import Blueprint
-from vulpix.core.package_managers import get_package_manager, PackageManager
+from vulpix.package_managers import get_package_manager, PackageManager
 from vulpix.task_section import TaskSection, term
 
 def regex_arg(arg: str) -> re.Pattern[str]:

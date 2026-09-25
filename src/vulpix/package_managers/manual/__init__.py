@@ -45,7 +45,7 @@ from typing import Callable, List
 
 from vulpix.core import VulpixError, env, utils, logging
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
-from vulpix.core.package_managers import PackageManager
+from vulpix.package_managers import PackageManager
 
 from . import packages as library
 

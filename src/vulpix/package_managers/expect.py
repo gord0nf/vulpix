@@ -13,7 +13,7 @@ three types of package verification:
 
 from vulpix.core import VulpixError, utils, logging
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
-from vulpix.core.package_managers import PackageManager
+from vulpix.package_managers import PackageManager
 
 def template_exists(name: str) -> bool:
     pass # TODO

@@ -2,7 +2,7 @@ import os
 from typing import Literal, Dict, List
 from dataclasses import dataclass, field
 
-from vulpix.core.package_managers import get_package_manager, PackageManager
+from vulpix.package_managers import get_package_manager, PackageManager
 
 _cpu_count = os.cpu_count()
 
