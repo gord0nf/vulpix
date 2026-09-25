@@ -3,10 +3,9 @@ import stat
 import shutil
 import threading
 import subprocess
-from logging import Logger
 from pathlib import Path
 
-from vulpix.core import env
+from vulpix.core import env, logging
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
@@ -48,7 +47,7 @@ def copytree_windows(src: Path, dst: Path):
         else:
             shutil.copy2(src_path, dst_path, follow_symlinks=False)
 
-def link(target: Path, link: Path, logger: Logger):
+def link(target: Path, link: Path, logger: logging.Logger):
     """try symlink, else hardlink"""
 
     # symlink

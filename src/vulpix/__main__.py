@@ -1,12 +1,11 @@
 import sys
 
-from vulpix.core import VulpixError, env
-from vulpix.logging import get_logger
+from vulpix.core import VulpixError, env, logging
 from vulpix.cli import Cli
 
 def main():
     cli = Cli()
-    cli.logger = get_logger("main", verbose=cli.verbose)
+    cli.logger = logging.get_logger("main", verbose=cli.verbose)
 
     try:
         cli.main()

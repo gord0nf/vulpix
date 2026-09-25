@@ -5,12 +5,11 @@ parse blueprint yaml.
 
 import os
 import sys
-from pathlib import Path
-from logging import Logger
 import dacite
 import yaml
+from pathlib import Path
 
-from vulpix.core import VulpixError
+from vulpix.core import VulpixError, logging
 from vulpix.core.blueprint import Blueprint
 
 dacite_config = dacite.Config(strict=True)
@@ -33,7 +32,7 @@ def get_extended_path(value: str, parent_dir: Path) -> Path:
         raise SchemaError("extended path does not exist: %s" % (path,))
     return path
 
-def expand_blueprint(path: Path, logger: Logger) -> tuple[dict, Blueprint]:
+def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprint]:
     """returns both raw dict and processes Blueprint object."""
 
     logger.debug(f"expanding blueprint at {path}")

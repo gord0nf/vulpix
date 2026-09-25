@@ -2,11 +2,7 @@ import queue
 import threading
 from typing import Callable, Protocol
 
-from vulpix import utils
-from vulpix.core import VulpixError
-from vulpix.logging import (
-    Logger, LoggerAdapter, get_logger, logger_is_verbose, set_console_log_fmt
-)
+from vulpix.core import VulpixError, utils, logging
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 
@@ -20,7 +16,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     # params like args, kwargs, task_name, task_queue
     type TaskFunction = Callable[[tuple, dict, str, ThreadedTaskQueue], BaseException | None]
 
-    logger: Logger
+    logger: logging.Logger
     threads: list[WorkerThread]
     exit_event: threading.Event
     done_broadcast: utils.Broadcast
@@ -34,10 +30,10 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     def _thread_should_die(self):
         return self.exit_event.is_set() and self.empty() and self.unfinished_tasks == 0
 
-    def _get_task_logger(self, task_name: str) -> Logger:
-        logger = get_logger(f"tasks/{task_name}", verbose=logger_is_verbose(self.logger))
+    def _get_task_logger(self, task_name: str) -> logging.Logger:
+        logger = logging.get_logger(f"tasks/{task_name}", verbose=logging.logger_is_verbose(self.logger))
         name = utils.Colors.CYAN + task_name + utils.Colors.RESET
-        set_console_log_fmt(logger, f"\t%(levelname)s> {name}> %(message)s")
+        logging.set_console_log_fmt(logger, f"\t%(levelname)s> {name}> %(message)s")
         return logger
 
     class WorkerThread(threading.Thread):
@@ -76,7 +72,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                 self.current_task = None
                 self.q.done_broadcast.broadcast()
 
-    def __init__(self, n_threads: int, logger: Logger) -> None:
+    def __init__(self, n_threads: int, logger: logging.Logger) -> None:
         super().__init__(n_threads)
         self.logger = logger
         self.threads = []

@@ -1,12 +1,11 @@
 import sys
 import types
-import logging
 import subprocess
 import importlib
 import importlib.util
 from typing import Callable
 
-from vulpix.core import VulpixError
+from vulpix.core import VulpixError, logging
 
 # package interface -------------------------------------------------------------------------------
 

@@ -4,20 +4,19 @@ import threading
 
 from logging import *
 
-from vulpix.core import env
-from vulpix.utils import Colors
+from vulpix.core import env, utils
 
 class ColoredLogFormatter(Formatter):
     COLORS = {
-        DEBUG: Colors.PURPLE,
-        INFO: Colors.BLUE,
-        WARNING: Colors.YELLOW,
-        ERROR: Colors.RED,
-        CRITICAL: Colors.BOLD + Colors.RED,
+        DEBUG: utils.Colors.PURPLE,
+        INFO: utils.Colors.BLUE,
+        WARNING: utils.Colors.YELLOW,
+        ERROR: utils.Colors.RED,
+        CRITICAL: utils.Colors.BOLD + utils.Colors.RED,
     }
     def format(self, record):
-        log_color = self.COLORS.get(record.levelno, Colors.RESET)
-        record.levelname = f"{log_color}{record.levelname}{Colors.RESET}"
+        log_color = self.COLORS.get(record.levelno, utils.Colors.RESET)
+        record.levelname = f"{log_color}{record.levelname}{utils.Colors.RESET}"
         return super().format(record)
 
 FILE_FORMATTER = Formatter("%(asctime)s %(threadName)s [%(levelname)s]: %(message)s")

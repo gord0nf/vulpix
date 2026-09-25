@@ -1,12 +1,11 @@
 from pathlib import Path
 
-from vulpix.logging import Logger
-from vulpix.core import VulpixError, env
+from vulpix.core import VulpixError, env, logging
 from vulpix.core.package_managers.manual.packages import run_external_script, simple_shell_wrapper
 
 WINDOWS_SCRIPT = str(Path(__file__).resolve().parent / "python.ps1")
 
-def main(install_dir: str, logger: Logger) -> list[str]:
+def main(install_dir: str, logger: logging.Logger) -> list[str]:
     if env.OS != 'windows':
         logging.error("manual python install is not supported on linux (would have to build from source)")
         raise VulpixError("you should install python using your os package manager")
