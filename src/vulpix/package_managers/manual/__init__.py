@@ -45,7 +45,7 @@ from typing import Callable, List
 
 from vulpix.core import VulpixError, env, utils, logging
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
-from vulpix.package_managers import PackageManager
+from vulpix.package_managers import PackageManager, InvalidPackage
 
 from . import packages as library
 
@@ -61,7 +61,7 @@ type PackageScript = Callable[[str, logging.Logger], List[str]]
 def get_package_script(package: str) -> PackageScript:
     module = library.get_package(package)
     if not module:
-        raise PackageManager.InvalidPackage(package, "manual")
+        raise InvalidPackage(package, "manual")
     main = getattr(module, "main", None)
     if not main or not callable(main):
         raise Exception(f"manual package script for '{package}' did not export main() correctly")
@@ -281,7 +281,7 @@ class ManualManager(PackageManager):
     def check_packages(self, packages: list[str]) -> None:
         for package in packages:
             if not library.check_package(package):
-                raise self.InvalidPackage(package, "manual")
+                raise InvalidPackage(package, "manual")
 
     def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
         diff = self.PackageDiff()
