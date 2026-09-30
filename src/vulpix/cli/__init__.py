@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 from dataclasses import astuple
 
-from vulpix import __version__, package_managers
+from vulpix import __version__, package_managers, config_managers
 from vulpix.core import VulpixError, tasks, env
 from vulpix.core.blueprint import Blueprint
 from vulpix.cli.task_section import TaskSection, term
@@ -59,12 +59,16 @@ def build_package_filter(
     return filter_package_changes
 
 def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
+    if len(blueprint.packages) == 0:
+        logger.warning(f"no package managers in blueprint, skipping package management")
+        return
+
     section = TaskSection("package management", blueprint, logger)
     with section:
         for manager_id, packages in blueprint.packages.items():
             manager = package_managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
-            logger.debug(f"{manager_id}: {diff}")
+            logger.debug(f"packagemanager {manager_id}: {diff}")
 
             package_filter(manager_id, diff)
             logger.debug(f"filtered diff: {diff}")
@@ -72,14 +76,36 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
                 logger.warning(f"no regex matches, skipping '{manager_id}' package management")
                 continue
 
-            section.run_task(f"manager[{manager_id}]", manager.apply_changes, diff)
+            section.run_task(f"package_manager[{manager_id}]", manager.apply_changes, diff)
 
     if section.tasks_failed:
         logger.warning('some package tasks failed')
-        logger.warning('run `vulpix replay <task>` to check task logs')
+        logger.info('run `vulpix replay <task>` to check task logs')
 
-def package_config_section(pakage_filter: re.Pattern):
-    pass
+def package_config_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
+    if len(blueprint.configs) == 0:
+        logger.warning(f"no config managers in blueprint, skipping config management")
+        return
+
+    # config managers shouldn't care about package managers, so we just get a list of the package
+    # names and give it to the config managers as a hint of what to config.
+    packages = [p for manager_packages in blueprint.packages.values() for p in manager_packages]
+    packages = list(set(packages))
+    packages = package_filter(packages)
+    logger.debug(f"config packages: {packages}")
+    if len(packages) == 0:
+        logger.warning(f"no packages are visible to config (hidden by filtering or failure); running config anyways")
+
+    section = TaskSection("config management", blueprint, logger)
+    with section:
+        for manager_id, config in blueprint.configs.items():
+            manager = config_managers.get_manager(manager_id)
+            logger.debug(f"configmanager {manager_id}")
+            section.run_task(f"config_manager[{manager_id}]", manager.apply_config, config, packages)
+
+    if section.tasks_failed:
+        logger.warning('some config tasks failed')
+        logger.info('run `vulpix replay <task>` to check task logs')
 
 class Cli(argparse.Namespace):
     logger: Logger
@@ -152,7 +178,8 @@ class Cli(argparse.Namespace):
             "-c", "--config",
             type=regex_arg, metavar="REGEX",
             nargs='?', const='.*', default=None,
-            help="runs config scripts as specified in blueprint.")
+            help="runs config managers for the specified packages (or all if no regex). the " \
+                 "config for any packages that fail another operation will not be run.")
         sync_parser.add_argument(
             "-r", "--reinstall",
             type=regex_arg, metavar="REGEX",
@@ -211,7 +238,8 @@ class Cli(argparse.Namespace):
             package_manage_section(blueprint, package_filter, self.logger)
 
         if self.config is not None:
-            package_config_section(self.config)
+            package_filter = lambda packages: [p for p in packages if re.match(self.config, p)]
+            package_config_section(blueprint, package_filter, self.logger)
 
     def dotfiles_command(self, blueprint_path: Path):
         logging.clear_logs()
