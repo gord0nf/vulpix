@@ -30,8 +30,6 @@ class TaskSection(ThreadedTaskQueue):
 
     name: str
     emote: str
-    tasks_failed: bool
-
     header_title: str
     footer_title: str
     footer_height: int
@@ -103,6 +101,7 @@ class TaskSection(ThreadedTaskQueue):
             self._update_footer()
 
     def __enter__(self):
+        print() # line space
         self.logger.info(term.orchid(self.emote) + " " + term.maroon1(self.name.upper()))
 
         # init task section screen
@@ -128,8 +127,13 @@ class TaskSection(ThreadedTaskQueue):
             self._fullscreen.__exit__(*exc_args)
 
         # summary
-        self.tasks_failed = any(not status for status in self.completed_tasks.values())
+        tasks_failed = any(not status for status in self.completed_tasks.values())
         if len(self.completed_tasks) > 0:
-            em = term.red("＞︿＜") if self.tasks_failed else term.green(" ✿ ◠‿◠ ")
+            em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
             print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
+
+            if tasks_failed:
+                self.logger.warning('some package tasks failed')
+                self.logger.info('run `vulpix replay <task>` to check task logs')
+
         return return_value

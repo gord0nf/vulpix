@@ -63,8 +63,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
         logger.warning(f"no package managers in blueprint, skipping package management")
         return
 
-    section = TaskSection("package management", blueprint, logger, emote='(*￣０￣)ノ')
-    with section:
+    with TaskSection("package management", blueprint, logger, emote='(*￣０￣)ノ') as section:
         for manager_id, packages in blueprint.packages.items():
             manager = package_managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -77,10 +76,6 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
                 continue
 
             section.run_task(f"package_manager[{manager_id}]", manager.apply_changes, diff)
-
-    if section.tasks_failed:
-        logger.warning('some package tasks failed')
-        logger.info('run `vulpix replay <task>` to check task logs')
 
 def package_config_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
     if len(blueprint.configs) == 0:
@@ -96,16 +91,11 @@ def package_config_section(blueprint: Blueprint, package_filter: Callable, logge
     if len(packages) == 0:
         logger.warning(f"no packages are visible to config (hidden by filtering or failure); running config anyways")
 
-    section = TaskSection("config management", blueprint, logger, emote='(^人^)')
-    with section:
+    with TaskSection("config management", blueprint, logger, emote='(^人^)') as section:
         for manager_id, config in blueprint.configs.items():
             manager = config_managers.get_manager(manager_id)
             logger.debug(f"configmanager {manager_id}")
             section.run_task(f"config_manager[{manager_id}]", manager.apply_config, config, packages)
-
-    if section.tasks_failed:
-        logger.warning('some config tasks failed')
-        logger.info('run `vulpix replay <task>` to check task logs')
 
 class Cli(argparse.Namespace):
     logger: Logger
@@ -274,6 +264,7 @@ class Cli(argparse.Namespace):
         blueprint_path = env.CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
             blueprint_path = Path(self.blueprint)
+        self.logger.info(f"using blueprint at '{blueprint_path}'")
 
         if not blueprint_path.exists():
             # TODO: ask if you wanna copy the default
