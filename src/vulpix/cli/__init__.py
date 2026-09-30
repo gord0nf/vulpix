@@ -222,6 +222,7 @@ class Cli(argparse.Namespace):
         self.logger = logging.getLogger("main")
         logging.attach_log_file(self.logger)
         logging.attach_console_logging(self.logger, verbose=self.verbose)
+        TaskSection.verbose_loggers = self.verbose
 
     def sync_command(self, blueprint_path: Path):
         logging.clear_logs()

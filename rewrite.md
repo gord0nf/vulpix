@@ -8,5 +8,4 @@
 todo:
 - wrapper for task management for config managers and package managers, respectively
 - finish expect manager
-- debug debug logs
 - no fullscreen option

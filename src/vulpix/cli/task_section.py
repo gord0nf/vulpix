@@ -24,7 +24,7 @@ def task_summary(completed_tasks: dict[str, bool]) -> str:
     return "\n".join(lines) + "\n"
 
 class TaskSection(ThreadedTaskQueue):
-    verbose: bool = False
+    verbose_loggers: bool = False # static
 
     name: str
     emote: str
@@ -56,7 +56,11 @@ class TaskSection(ThreadedTaskQueue):
     def _get_task_logger(self, task_name: str) -> logging.Logger:
         logger = super()._get_task_logger(task_name)
         task_name = term.cyan(task_name)
-        logging.attach_console_logging(logger, self.verbose, prefix=("\t", f" {task_name}>"))
+        self.logger.debug(f"new task logger (verbose={self.verbose_loggers})")
+        logging.attach_console_logging(
+            logger,
+            verbose=self.verbose_loggers,
+            prefix=("\t", f" {task_name}>"))
         return logger
 
     def _update_footer(self):
