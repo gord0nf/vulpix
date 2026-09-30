@@ -3,6 +3,7 @@ import stat
 import shutil
 import threading
 import subprocess
+import inspect
 from pathlib import Path
 
 from vulpix.core import env, logging, VulpixError
@@ -149,3 +150,12 @@ class Broadcast:
 
     def wait(self):
         return self._event.wait()
+
+def accepts_kwarg(func_sig: inspect.Signature, kwarg_name: str):
+    if kwarg_name in func_sig.parameters:
+        return func_sig.parameters[kwarg_name].kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD, 
+            inspect.Parameter.KEYWORD_ONLY
+        )
+        
+    return any(p.kind == inspect.Parameter.VAR_KEYWORD for p in func_sig.parameters.values())

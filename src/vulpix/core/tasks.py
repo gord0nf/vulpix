@@ -1,8 +1,9 @@
 import queue
 import threading
+import inspect
 from typing import Callable, Protocol
 
-from vulpix.utils import VulpixError, Broadcast, logging
+from vulpix.utils import VulpixError, Broadcast, logging, accepts_kwarg
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 
@@ -13,8 +14,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     worker running it.
     """
 
-    # params like args, kwargs, task_name, task_queue
-    type TaskFunction = Callable[[tuple, dict, str, ThreadedTaskQueue], BaseException | None]
+    type TaskFunction = Callable[..., Exception | None]
 
     logger: logging.Logger
     threads: list[WorkerThread]
@@ -57,11 +57,20 @@ class ThreadedTaskQueue(queue.Queue[Task]):
                         break
                     continue
 
-                self.q.logger.debug(f"task starting: {self.current_task} (args={args}, kwargs={kwargs})")
+                task_logger = self.q._get_task_logger(self.current_task)
 
-                # NOTE: only *args (and not kwargs) has to be expanded to potentially accept `self`
-                # for class methods (if ya know what i mean...)
-                error = f(*args, kwargs=kwargs, task_name=self.current_task, task_queue=self.q)
+                error: Exception | None = None
+                try:
+                    f(*args, **kwargs, name=self.current_task, queue=self.q, logger=task_logger)
+                except VulpixError as e:
+                    error = e
+                    task_logger.critical(e.message)
+                except Exception as e:
+                    error = e
+                    task_logger.debug("exception raised", exc_info=True)
+                    task_logger.critical("failure")
+                else:
+                    task_logger.info("success")
 
                 self.q.task_done()
                 self.q._post_task_callback(self.current_task, error)
@@ -105,26 +114,24 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
 
-    def wrapped_function(*args: tuple, kwargs: dict, task_name: str, task_queue: ThreadedTaskQueue):
-        kwargs["name"] = task_name
-        kwargs["queue"] = task_queue
-        kwargs["logger"] = task_queue._get_task_logger(task_name)
+    sig = inspect.signature(f)
 
-        error: BaseException | None = None
-        try:
-            kwargs["logger"].info("running new task")
-            f(*args, **kwargs)
-        except VulpixError as e:
-            error = e
-            kwargs["logger"].critical(e.message)
-        except BaseException as e:
-            error = e
-            kwargs["logger"].debug("exception raised", exc_info=True)
-            kwargs["logger"].critical("task failed")
-        else:
-            kwargs["logger"].info("task succeeded")
+    def wrapped(
+        *args: tuple,
+        name: str,
+        queue: ThreadedTaskQueue,
+        logger: logging.Logger,
+        **kwargs: dict
+    ) -> Exception | None:
+        if accepts_kwarg(sig, "name"):
+            kwargs["name"] = name
+        if accepts_kwarg(sig, "queue"):
+            kwargs["queue"] = queue
+        if accepts_kwarg(sig, "logger"):
+            kwargs["logger"] = logger
 
-        return error
+        logger.debug(f"task: {name} (args={args}, kwargs={kwargs})")
+        f(*args, **kwargs)
     
-    wrapped_function.__name__ = f.__name__
-    return wrapped_function
+    wrapped.__name__ = f.__name__ # not necessary, just for debugging
+    return wrapped

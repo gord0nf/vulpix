@@ -199,7 +199,7 @@ def destory_package(package: str, status: Status):
     status.destroy_package_entry(package)
 
 @task_function
-def install_package(package: str, logger: logging.Logger, **_):
+def install_package(package: str, logger: logging.Logger):
     """if package not installed, will run install script, then enable the package"""
     logger.info(f"installing package '{package}'")
     status = Status(logger)
@@ -215,7 +215,7 @@ def install_package(package: str, logger: logging.Logger, **_):
         status.activate_package_binaries(package)
 
 @task_function
-def uninstall_package(package: str, logger: logging.Logger, **_):
+def uninstall_package(package: str, logger: logging.Logger):
     """will disable the installation"""
     logger.info(f"uninstalling package '{package}'")
     with Status(logger) as status:
@@ -226,7 +226,7 @@ def uninstall_package(package: str, logger: logging.Logger, **_):
             logger.info(f"'{package}' not installed or already deactivated")
 
 @task_function
-def update_package(package: str, logger: logging.Logger, **_):
+def update_package(package: str, logger: logging.Logger):
     """if package installed, will run install script, then enable the package"""
     logger.info(f"updating package '{package}'")
     status = Status(logger)
@@ -243,7 +243,7 @@ def update_package(package: str, logger: logging.Logger, **_):
         status.activate_package_binaries(package)
 
 @task_function
-def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQueue, **_):
+def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQueue):
     """will destroy the installation, then run install script, then enable the package"""
     logger.info(f"reinstalling package '{package}'")
     with Status(logger) as status:
@@ -256,7 +256,7 @@ def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQ
         raise VulpixError(f"spawned install task '{task_name}' failed")
 
 @task_function
-def garbage_collection(logger: logging.Logger, **_):
+def garbage_collection(logger: logging.Logger):
     """actually destroys packages that have been disabled for too long"""
     logger.info('checking for garbage packages')
 
@@ -283,7 +283,7 @@ class ManualManager(PackageManager):
             if not library.check_package(package):
                 raise InvalidPackage(package, "manual")
 
-    def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
+    def get_package_diff(self, blueprint_packages: list[str]) -> PackageManager.PackageDiff:
         diff = self.PackageDiff()
 
         with Status(self.main_logger) as status:
@@ -298,7 +298,7 @@ class ManualManager(PackageManager):
         return diff
 
     @task_function
-    def apply_changes(self, diff: self.PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
+    def apply_changes(self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue) -> None:
         spawned_tasks: list[str] = []
 
         for package in diff.to_uninstall:

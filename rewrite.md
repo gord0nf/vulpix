@@ -6,5 +6,6 @@
 - replay command
 
 todo:
-- wrapper for task management for config managers and package managers, respectively
+- CURRENT: wrapper for task management for config managers and package managers, respectively
+    - ConfigTracker/PackageTracker
 - finish expect manager

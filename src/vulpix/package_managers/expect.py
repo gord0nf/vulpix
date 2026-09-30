@@ -19,28 +19,28 @@ def template_exists(name: str) -> bool:
     pass # TODO
 
 @task_function
-def check_template(package: str, logger: logging.Logger, **_):
+def check_template(package: str, logger: logging.Logger):
     pass # TODO
 
 @task_function
-def check_command(package: str, logger: logging.Logger, **_):
+def check_command(package: str, logger: logging.Logger):
     if not command_exists(package):
         raise VulpixError(f"command doesn't exist: {package}")
     logger.info(f"command exists: {package}")
 
 @task_function
-def check_force(package: str, logger: logging.Logger, **_):
+def check_force(package: str, logger: logging.Logger):
     logger.info(f"force check: {package}")
 
 class ExpectManager(PackageManager):
     def check_packages(self, *_) -> None:
         pass # expect doesn't have strict packages, see above
 
-    def get_package_diff(self, blueprint_packages: list[str]) -> self.PackageDiff:
+    def get_package_diff(self, blueprint_packages: list[str]) -> PackageManager.PackageDiff:
         return self.PackageDiff(to_install=blueprint_packages)
 
     @task_function
-    def apply_changes(self, diff: self.PackageDiff, queue: ThreadedTaskQueue, **_) -> None:
+    def apply_changes(self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue) -> None:
         for package in diff.to_install:
             task_name = f"install[{package}@expect]"
             if template_exists(package):

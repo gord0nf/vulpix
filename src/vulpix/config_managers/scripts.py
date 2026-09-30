@@ -14,8 +14,7 @@ class ScriptsManager(ConfigManager):
         config: Any,
         packages: list[str],
         logger: logging.Logger,
-        queue: ThreadedTaskQueue,
-        **_
+        queue: ThreadedTaskQueue
     ) -> None:
         logger.debug(f"config: {config}")
         logger.debug(f"packages: {packages}")
