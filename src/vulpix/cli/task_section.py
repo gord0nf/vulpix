@@ -27,6 +27,7 @@ class TaskSection(ThreadedTaskQueue):
     verbose: bool = False
 
     name: str
+    emote: str
     alt_screen: bool = True
     show_tasks: re.Pattern = re.compile(".*")
     tasks_failed: bool
@@ -38,9 +39,10 @@ class TaskSection(ThreadedTaskQueue):
     _fullscreen: AbstractContextManager
     _scroll_region: AbstractContextManager
 
-    def __init__(self, name: str, blueprint: Blueprint, logger: logging.Logger):
+    def __init__(self, name: str, blueprint: Blueprint, logger: logging.Logger, emote='(^人^)'):
         super().__init__(blueprint.settings.threads, logger)
         self.name = name
+        self.emote = emote
         self.alt_screen = blueprint.settings.alt_screen
 
         self.header_title = sugary(name, term.on_turquoise, term.on_aquamarine3, term.on_teal)
@@ -96,8 +98,7 @@ class TaskSection(ThreadedTaskQueue):
             self._update_footer()
 
     def __enter__(self):
-        em = random.choice(["(┬┬﹏┬┬)", "(^人^)", "(￣︿￣)"])
-        self.logger.info(term.orchid(em) + " " + term.maroon1(self.name.upper()))
+        self.logger.info(term.orchid(self.emote) + " " + term.maroon1(self.name.upper()))
 
         # init task section screen
         if self.alt_screen:
@@ -124,6 +125,6 @@ class TaskSection(ThreadedTaskQueue):
         # summary
         self.tasks_failed = any(not status for status in self.completed_tasks.values())
         if len(self.completed_tasks) > 0:
-            em = term.red("＞︿＜") if self.tasks_failed else term.green("(✿ ◠‿◠)")
+            em = term.red("＞︿＜") if self.tasks_failed else term.green("✿ ◠‿◠")
             print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
         return return_value

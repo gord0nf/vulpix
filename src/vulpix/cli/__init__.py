@@ -63,7 +63,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
         logger.warning(f"no package managers in blueprint, skipping package management")
         return
 
-    section = TaskSection("package management", blueprint, logger)
+    section = TaskSection("package management", blueprint, logger, emote='(*￣０￣)ノ')
     with section:
         for manager_id, packages in blueprint.packages.items():
             manager = package_managers.get_manager(manager_id)
@@ -96,7 +96,7 @@ def package_config_section(blueprint: Blueprint, package_filter: Callable, logge
     if len(packages) == 0:
         logger.warning(f"no packages are visible to config (hidden by filtering or failure); running config anyways")
 
-    section = TaskSection("config management", blueprint, logger)
+    section = TaskSection("config management", blueprint, logger, emote='(^人^)')
     with section:
         for manager_id, config in blueprint.configs.items():
             manager = config_managers.get_manager(manager_id)
