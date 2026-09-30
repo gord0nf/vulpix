@@ -6,8 +6,9 @@
 - replay command
 
 todo:
-- no summary if no completed tasks
-- print success and failure root logs for task section
+- wrapper for task management for config managers and package managers, respectively
 - finish expect manager
-- better indented thread logs in task section
-- print (success) and (failure) for task summary
+- static emoticon per task section
+- debug debug logs
+- remove happy success emoticon head
+- no fullscreen option
