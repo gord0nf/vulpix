@@ -152,6 +152,7 @@ class Cli(argparse.Namespace):
             "-b", "--blueprint",
             type=str, metavar="PATH",
             help="specify blueprint.yaml path, otherwise searches default locations")
+        parser.add_argument("--no-fullscreen", action="store_true", help="no fullscreen/alt screen")
 
         subparsers = parser.add_subparsers(dest="command")
 
@@ -222,7 +223,11 @@ class Cli(argparse.Namespace):
         self.logger = logging.getLogger("main")
         logging.attach_log_file(self.logger)
         logging.attach_console_logging(self.logger, verbose=self.verbose)
+
+        # TaskSection settings
         TaskSection.verbose_loggers = self.verbose
+        if self.no_fullscreen:
+            TaskSection.alt_screen = False
 
     def sync_command(self, blueprint_path: Path):
         logging.clear_logs()

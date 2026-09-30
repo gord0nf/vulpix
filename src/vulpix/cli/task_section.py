@@ -24,12 +24,12 @@ def task_summary(completed_tasks: dict[str, bool]) -> str:
     return "\n".join(lines) + "\n"
 
 class TaskSection(ThreadedTaskQueue):
-    verbose_loggers: bool = False # static
+    # static shared settings
+    verbose_loggers: bool = False
+    alt_screen: bool | None = None
 
     name: str
     emote: str
-    alt_screen: bool = True
-    show_tasks: re.Pattern = re.compile(".*")
     tasks_failed: bool
 
     header_title: str
@@ -43,7 +43,8 @@ class TaskSection(ThreadedTaskQueue):
         super().__init__(blueprint.settings.threads, logger)
         self.name = name
         self.emote = emote
-        self.alt_screen = blueprint.settings.alt_screen
+        if self.alt_screen is None:
+            self.alt_screen = blueprint.settings.alt_screen
 
         self.header_title = sugary(name, term.on_turquoise, term.on_aquamarine3, term.on_teal)
         self.footer_title = sugary("tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4)
@@ -129,6 +130,6 @@ class TaskSection(ThreadedTaskQueue):
         # summary
         self.tasks_failed = any(not status for status in self.completed_tasks.values())
         if len(self.completed_tasks) > 0:
-            em = term.red("＞︿＜") if self.tasks_failed else term.green("✿ ◠‿◠")
+            em = term.red("＞︿＜") if self.tasks_failed else term.green(" ✿ ◠‿◠ ")
             print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
         return return_value

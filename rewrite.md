@@ -8,4 +8,3 @@
 todo:
 - wrapper for task management for config managers and package managers, respectively
 - finish expect manager
-- no fullscreen option
