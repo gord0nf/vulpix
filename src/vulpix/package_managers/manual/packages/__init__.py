@@ -5,7 +5,7 @@ import importlib
 import importlib.util
 from typing import Callable
 
-from vulpix.core import VulpixError, logging
+from vulpix.utils import logging, run_cmd
 
 # package interface -------------------------------------------------------------------------------
 
@@ -35,14 +35,5 @@ def run_external_script(script: str, *args: list[str], logger: logging.Logger) -
     if script.endswith(".ps1"):
         cmd.insert(0, "powershell")
 
-    logger.debug(f"running external {cmd}")
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    for line in process.stderr:
-        logger.info(line.strip())
-    stdout, _ = process.communicate()
-    if process.returncode != 0:
-        raise VulpixError("external script failed")
-
-    if stdout:
-        return stdout.splitlines()
-    return []
+    stdout = run_cmd(*cmd, logger=logger, return_stdout=True)
+    return stdout or []

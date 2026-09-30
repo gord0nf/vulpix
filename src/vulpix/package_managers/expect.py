@@ -11,7 +11,7 @@ three types of package verification:
   are done (the package in the blueprint is more of a comment at this point)
 """
 
-from vulpix.core import VulpixError, utils, logging
+from vulpix.utils import VulpixError, logging, command_exists
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.package_managers import PackageManager
 
@@ -24,7 +24,7 @@ def check_template(package: str, logger: logging.Logger, **_):
 
 @task_function
 def check_command(package: str, logger: logging.Logger, **_):
-    if not utils.command_exists(package):
+    if not command_exists(package):
         raise VulpixError(f"command doesn't exist: {package}")
     logger.info(f"command exists: {package}")
 

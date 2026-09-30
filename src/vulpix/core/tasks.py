@@ -2,7 +2,7 @@ import queue
 import threading
 from typing import Callable, Protocol
 
-from vulpix.core import VulpixError, utils, logging
+from vulpix.utils import VulpixError, Broadcast, logging
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 
@@ -19,7 +19,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
     logger: logging.Logger
     threads: list[WorkerThread]
     exit_event: threading.Event
-    done_broadcast: utils.Broadcast
+    done_broadcast: Broadcast
     completed_tasks: dict[str, bool]  # task_name: was_successful
     completed_tasks_lock: threading.Lock
 
@@ -73,7 +73,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         self.logger = logger
         self.threads = []
         self.exit_event = threading.Event()
-        self.done_broadcast = utils.Broadcast()
+        self.done_broadcast = Broadcast()
         self.completed_tasks = {}
         self.completed_tasks_lock = threading.Lock()
 

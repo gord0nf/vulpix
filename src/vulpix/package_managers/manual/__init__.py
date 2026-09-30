@@ -43,7 +43,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable, List
 
-from vulpix.core import VulpixError, env, utils, logging
+from vulpix.utils import VulpixError, env, logging, AtomicChange, rm_link, link, rm_fr
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.package_managers import PackageManager, InvalidPackage
 
@@ -170,18 +170,18 @@ class Status:
     def activate_package_binaries(self, package: str):
         self.logger.info(f"activating '{package}' binaries")
         binaries = self.by_package[package].binaries
-        with utils.AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
+        with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
                 bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
                 self.logger.debug(f"bin link: '{bin_link}' -> '{bin_target}'")
                 if bin_link.exists():
-                    utils.rm_link(bin_link)
-                utils.link(bin_target, bin_link, self.logger)
+                    rm_link(bin_link)
+                link(bin_target, bin_link, self.logger)
 
     def deactivate_package_binaries(self, package: str):
         self.logger.info(f"deactivating '{package}' binaries")
         binaries = self.by_package[package].binaries
-        with utils.AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
+        with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
                 bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
                 if not bin_link.exists():
@@ -189,13 +189,13 @@ class Status:
                     continue
 
                 self.logger.debug(f"unlinking: {bin_link}")
-                utils.rm_link(bin_link)
+                rm_link(bin_link)
 
 # main operations ---------------------------------------------------------------------------------
 
 def destory_package(package: str, status: Status):
     status.logger.info(f"destroying package '{package}'")
-    utils.rm_fr(get_package_install_dir(package))
+    rm_fr(get_package_install_dir(package))
     status.destroy_package_entry(package)
 
 @task_function

@@ -5,10 +5,9 @@ import threading
 import subprocess
 from pathlib import Path
 
-from vulpix.core import env, logging
+from vulpix.core import env, logging, VulpixError
 
-def command_exists(command: str) -> bool:
-    return shutil.which(command) is not None
+# file system utils -------------------------------------------------------------------------------
 
 def is_junction(path: Path) -> bool:
     if env.OS != 'windows' or not path.is_dir():
@@ -113,6 +112,27 @@ class AtomicChange:
                 raise Exception('_atomic_change_apply sanity check failed!!')
             rm_fr(self.target)
             self.tmp.rename(self.target)
+
+# shell utils -------------------------------------------------------------------------------------
+
+def command_exists(command: str) -> bool:
+    return shutil.which(command) is not None
+
+def run_cmd(*cmd: list[str], logger: logging.Logger, return_stdout: bool = False) -> list[str] | None:
+    logger.debug(f"running external cmd: {cmd}")
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    for line in process.stderr:
+        logger.info(line.strip())
+
+    stdout, _ = process.communicate()
+    if process.returncode != 0:
+        raise VulpixError("external script failed")
+
+    if stdout:
+        return stdout.splitlines()
+    return []
+
+# misc utils --------------------------------------------------------------------------------------
 
 class Broadcast:
     _event: threading.Event

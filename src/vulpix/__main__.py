@@ -1,6 +1,7 @@
 import sys
 
-from vulpix.core import VulpixError, env, logging
+from vulpix.core import env, logging
+from vulpix.utils import VulpixError
 from vulpix.cli import Cli
 
 def main():
