@@ -12,7 +12,7 @@ three types of package verification:
 """
 
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
-from vulpix.package_managers import PackageManager
+from vulpix.package_managers import ManagerTask, PackageManager
 from vulpix.utils import VulpixError, command_exists, logging
 
 
@@ -51,13 +51,15 @@ class ExpectManager(PackageManager):
         self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue
     ) -> None:
         for package in diff.to_install:
-            task_name = f"install[{package}@expect]"
             if template_exists(package):
-                queue.run_task(task_name, check_template, package)
+                task_func = check_template
             elif package.endswith("!"):
-                queue.run_task(task_name, check_force, package)
+                task_func = check_force
             else:
-                queue.run_task(task_name, check_command, package)
+                task_func = check_command
+
+            task = ManagerTask(verb="check", package=package, manager="expect")
+            task.run(queue, task_func, args=(package,))
 
 
 package_manager_class = ExpectManager

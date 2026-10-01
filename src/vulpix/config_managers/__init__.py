@@ -3,6 +3,7 @@ import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
+from vulpix.core.manager_tasks import *
 from vulpix.core.managers import *
 from vulpix.core.tasks import task_function
 

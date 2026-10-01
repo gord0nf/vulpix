@@ -12,6 +12,7 @@ from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
 from vulpix.core import VulpixError, env
 from vulpix.core.blueprint import Blueprint
+from vulpix.core.manager_tasks import ManagerTask
 
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -96,9 +97,8 @@ def package_manage_section(
                 )
                 continue
 
-            section.run_task(
-                f"package_manager[{manager_id}]", manager.apply_changes, diff
-            )
+            task = ManagerTask("package_manager", manager_id)
+            task.run(section, manager.apply_changes, args=(diff,))
 
 
 def package_config_section(
@@ -125,9 +125,9 @@ def package_config_section(
         for manager_id, config in blueprint.configs.items():
             manager = config_managers.get_manager(manager_id)
             logger.debug(f"configmanager {manager_id}")
-            section.run_task(
-                f"config_manager[{manager_id}]", manager.apply_config, config, packages
-            )
+
+            task = ManagerTask("config_manager", manager_id)
+            task.run(section, manager.apply_config, args=(config, packages))
 
 
 class Cli(argparse.Namespace):

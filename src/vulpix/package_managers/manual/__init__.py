@@ -46,7 +46,7 @@ import yaml
 from filelock import FileLock, Timeout
 
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
-from vulpix.package_managers import InvalidPackage, PackageManager
+from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
 from vulpix.utils import AtomicChange, VulpixError, env, link, logging, rm_fr, rm_link
 
 from . import packages as library
@@ -335,25 +335,25 @@ class ManualManager(PackageManager):
         spawned_tasks: list[str] = []
 
         for package in diff.to_uninstall:
-            task_name = f"uninstall[{package}@manual]"
-            queue.run_task(task_name, uninstall_package, package)
-            spawned_tasks.append(task_name)
+            task = ManagerTask.uninstall(package, manager="manual")
+            task.run(queue, uninstall_package, args=(package,))
+            spawned_tasks.append(task.name)
         for package in diff.to_reinstall:
-            task_name = f"reinstall[{package}@manual]"
-            queue.run_task(task_name, reinstall_package, package)
-            spawned_tasks.append(task_name)
+            task = ManagerTask.reinstall(package, manager="manual")
+            task.run(queue, reinstall_package, args=(package,))
+            spawned_tasks.append(task.name)
         for package in diff.to_install:
-            task_name = f"install[{package}@manual]"
-            queue.run_task(task_name, install_package, package)
-            spawned_tasks.append(task_name)
+            task = ManagerTask.install(package, manager="manual")
+            task.run(queue, install_package, args=(package,))
+            spawned_tasks.append(task.name)
         for package in diff.to_update:
-            task_name = f"update[{package}@manual]"
-            queue.run_task(task_name, update_package, package)
-            spawned_tasks.append(task_name)
+            task = ManagerTask.update(package, manager="manual")
+            task.run(queue, update_package, args=(package,))
+            spawned_tasks.append(task.name)
 
         # postsetup garbage_collection
         queue.wait_for_tasks(spawned_tasks)
-        queue.run_task("postsetup[manual]", garbage_collection)
+        ManagerTask(verb="postsetup", manager="manual").run(queue, garbage_collection)
 
 
 package_manager_class = ManualManager
