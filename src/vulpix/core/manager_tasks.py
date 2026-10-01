@@ -1,5 +1,6 @@
 """utility functions to standardize manager task naming conventions, plus it's more readable"""
 
+import re
 from dataclasses import dataclass
 
 from vulpix.core.tasks import ThreadedTaskQueue as Queue
@@ -45,3 +46,18 @@ class ManagerTask:
         kwargs: dict | None = None,
     ):
         queue.run_task(self.name, f, *(args or ()), **(kwargs or {}))
+
+
+package_task_pattern = re.compile("^(.+)\\[(.+)@(.+)\\]$")
+
+
+def completed_package_tasks(og: dict[str, bool]) -> dict[ManagerTask, bool]:
+    """filters out manager package tasks and returns with dict keys as parsed ManagerTasks"""
+    parsed: dict[ManagerTask, bool] = {}
+    for task_name, status in og.items():
+        match = package_task_pattern.match(task_name)
+        if match:
+            task = ManagerTask(match.group(1), match.group(2), match.group(3))
+            parsed[task] = status
+
+    return parsed

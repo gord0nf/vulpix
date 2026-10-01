@@ -16,21 +16,6 @@ def sugary(title: str, color1: Callable, color2: Callable, color3: Callable) -> 
     return term.black(title + remainder)
 
 
-def task_summary(completed_tasks: dict[str, bool]) -> str:
-    fmark, smark = term.red("failure"), term.green("success")
-    failed = [
-        f"  - {task} ({fmark})"
-        for task, success in completed_tasks.items()
-        if not success
-    ]
-    succeeded = [
-        f"  - {task} ({smark})" for task, success in completed_tasks.items() if success
-    ]
-    lines = [*failed, *succeeded]
-    lines.sort()
-    return "\n".join(lines) + "\n"
-
-
 class TaskSection(ThreadedTaskQueue):
     # static shared settings
     verbose_loggers: bool = False
@@ -143,15 +128,5 @@ class TaskSection(ThreadedTaskQueue):
         if self.alt_screen:
             self._scroll_region.__exit__(*exc_args)
             self._fullscreen.__exit__(*exc_args)
-
-        # summary
-        tasks_failed = any(not status for status in self.completed_tasks.values())
-        if len(self.completed_tasks) > 0:
-            em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
-            print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
-
-            if tasks_failed:
-                self.logger.warning("some package tasks failed")
-                self.logger.info("run `vulpix replay <task>` to check task logs")
 
         return return_value

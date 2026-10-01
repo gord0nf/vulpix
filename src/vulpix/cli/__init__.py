@@ -12,7 +12,7 @@ from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
 from vulpix.core import VulpixError, env
 from vulpix.core.blueprint import Blueprint
-from vulpix.core.manager_tasks import ManagerTask
+from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -74,6 +74,30 @@ def build_package_filter(
     return filter_package_changes
 
 
+def task_summary(tasks: dict[ManagerTask, bool]) -> str:
+    fmark, smark = term.red("failure"), term.green("success")
+    failed = [
+        f"  - {task.name} ({fmark})" for task, success in tasks.items() if not success
+    ]
+    succeeded = [
+        f"  - {task.name} ({smark})" for task, success in tasks.items() if success
+    ]
+    failed.sort()
+    succeeded.sort()
+    return "\n".join([*failed, *succeeded]) + "\n"
+
+
+def print_section_summary(tasks: dict[ManagerTask, bool], logger: logging.Logger):
+    tasks_failed = any(not status for status in tasks.values())
+    if len(tasks) > 0:
+        em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
+        print(f"\n[{em}] summary:\n" + task_summary(tasks))
+
+        if tasks_failed:
+            logger.warning("some package tasks failed")
+            logger.info("run `vulpix replay <task>` to check task logs")
+
+
 def package_manage_section(
     blueprint: Blueprint, package_filter: Callable, logger: logging.Logger
 ):
@@ -99,6 +123,10 @@ def package_manage_section(
 
             task = ManagerTask("package_manager", manager_id)
             task.run(section, manager.apply_changes, args=(diff,))
+
+    # section summary
+    package_tasks = completed_package_tasks(section.completed_tasks)
+    print_section_summary(package_tasks, logger)
 
 
 def package_config_section(
@@ -128,6 +156,10 @@ def package_config_section(
 
             task = ManagerTask("config_manager", manager_id)
             task.run(section, manager.apply_config, args=(config, packages))
+
+    # section summary
+    package_tasks = completed_package_tasks(section.completed_tasks)
+    print_section_summary(package_tasks, logger)
 
 
 class Cli(argparse.Namespace):
