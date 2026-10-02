@@ -6,13 +6,13 @@ import subprocess
 import threading
 from pathlib import Path
 
-from vulpix.core import VulpixError, env, logging
+from vulpix.core import VulpixError, logging, system
 
 # file system utils -------------------------------------------------------------------------------
 
 
 def is_junction(path: Path) -> bool:
-    if env.OS != "windows" or not path.is_dir():
+    if system.OS != "windows" or not path.is_dir():
         return False
     if not (os.lstat(path).st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
         return False
@@ -69,14 +69,14 @@ def link(target: Path, link: Path, logger: logging.Logger):
         logger.warning("symlink failed. defaulting to hardlink/junction.")
 
     # hard link or junction
-    if env.OS == "windows" and target.is_dir():
+    if system.OS == "windows" and target.is_dir():
         create_junction(target, link)
     else:
         link.hardlink_to(target)
 
 
 def rm_link(link: Path):
-    if env.OS == "windows" and link.is_dir():
+    if system.OS == "windows" and link.is_dir():
         rm_junction(link)
     else:
         link.unlink()

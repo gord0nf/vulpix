@@ -45,13 +45,14 @@ import dacite
 import yaml
 from filelock import FileLock, Timeout
 
+from vulpix.core import dirs, logging
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
-from vulpix.utils import AtomicChange, VulpixError, env, link, logging, rm_fr, rm_link
+from vulpix.utils import AtomicChange, VulpixError, link, rm_fr, rm_link
 
 from . import packages as library
 
-ROOT_DIR = env.DATA / "manual"
+ROOT_DIR = dirs.DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
 STATUS_YAML = ROOT_DIR / "status.yaml"
 STATUS_LOCK = FileLock(STATUS_YAML.with_suffix(".lock"))

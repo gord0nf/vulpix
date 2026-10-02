@@ -11,9 +11,10 @@ three types of package verification:
   are done (the package in the blueprint is more of a comment at this point)
 """
 
+from vulpix.core import logging
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import ManagerTask, PackageManager
-from vulpix.utils import VulpixError, command_exists, logging
+from vulpix.utils import VulpixError, command_exists
 
 
 def template_exists(name: str) -> bool:

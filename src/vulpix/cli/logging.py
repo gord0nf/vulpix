@@ -4,6 +4,7 @@ import threading
 
 from blessed import Terminal
 
+from vulpix.core import dirs
 from vulpix.core.logging import *
 
 term = Terminal()
@@ -40,12 +41,12 @@ def attach_console_logging(
 
 # main is an exception because it represents per run logs that need to be cleared every run, no
 # matter what the cli wants to do (e.g. replaying logs)
-MAIN_LOG_FILE = env.LOG / "main.log"
+MAIN_LOG_FILE = dirs.LOG / "main.log"
 MAIN_LOG_FILE.unlink(missing_ok=True)
 
 
 def clear_logs():
     """this skips root level files (like main.log) because those should be handled manually"""
-    for item in env.LOG.iterdir():
+    for item in dirs.LOG.iterdir():
         if item.is_dir():
             shutil.rmtree(item)

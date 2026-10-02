@@ -10,7 +10,7 @@ from typing import Literal
 from vulpix import __version__, config_managers, package_managers
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
-from vulpix.core import VulpixError, env
+from vulpix.core import VulpixError, dirs, system
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
@@ -361,7 +361,7 @@ class Cli(argparse.Namespace):
         logging.clear_logs()
         if self.edit:
             blueprint.parent.mkdir(parents=True, exist_ok=True)
-            default_editor = "notepad" if env.OS == "windows" else "nano"
+            default_editor = "notepad" if system.OS == "windows" else "nano"
             editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
 
             self.logger.info(f"opening '{editor} {blueprint}'")
@@ -377,7 +377,7 @@ class Cli(argparse.Namespace):
     def main(self):
         self.logger.debug(str(self))
 
-        blueprint_path = env.CONFIG / "blueprint.yaml"
+        blueprint_path = dirs.CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
             blueprint_path = Path(self.blueprint)
 

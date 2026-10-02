@@ -5,7 +5,7 @@ default.
 
 from logging import *  # pyright: ignore[reportWildcardImportFromLibrary]
 
-from vulpix.core import env
+from vulpix.core import dirs
 
 basicConfig(level=DEBUG, handlers=[])
 
@@ -13,7 +13,7 @@ FILE_FORMATTER = Formatter("%(asctime)s %(threadName)s [%(levelname)s]: %(messag
 
 
 def attach_log_file(logger: Logger) -> None:
-    log_path = env.LOG.joinpath(logger.name + ".log")
+    log_path = dirs.LOG.joinpath(logger.name + ".log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     file_handler = FileHandler(log_path, encoding="utf-16")
