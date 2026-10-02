@@ -10,21 +10,30 @@ from vulpix.core import VulpixError, env, logging
 
 # file system utils -------------------------------------------------------------------------------
 
+
 def is_junction(path: Path) -> bool:
-    if env.OS != 'windows' or not path.is_dir():
+    if env.OS != "windows" or not path.is_dir():
         return False
     if not (os.lstat(path).st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
         return False
     return not path.is_symlink()
 
+
 def create_junction(target: Path, link: Path):
-    cmd = ['mklink', '/j', os.fsdecode(str(link.resolve())), os.fsdecode(str(target.resolve()))]
+    cmd = [
+        "mklink",
+        "/j",
+        os.fsdecode(str(link.resolve())),
+        os.fsdecode(str(target.resolve())),
+    ]
     proc = subprocess.run(cmd, shell=True, capture_output=True, check=False)
     if proc.returncode:
         raise OSError(proc.stderr.decode().strip())
 
+
 def rm_junction(link: Path):
     os.rmdir(link)
+
 
 def copytree_windows(src: Path, dst: Path):
     """copytree but preserves ntfs junctions"""
@@ -47,11 +56,12 @@ def copytree_windows(src: Path, dst: Path):
         else:
             shutil.copy2(src_path, dst_path, follow_symlinks=False)
 
+
 def link(target: Path, link: Path, logger: logging.Logger):
     """try symlink, else hardlink"""
 
     # symlink
-    try: 
+    try:
         link.symlink_to(target, target_is_directory=target.is_dir())
         return
     except OSError:
@@ -59,16 +69,18 @@ def link(target: Path, link: Path, logger: logging.Logger):
         logger.warning("symlink failed. defaulting to hardlink/junction.")
 
     # hard link or junction
-    if env.OS == 'windows' and target.is_dir():
+    if env.OS == "windows" and target.is_dir():
         create_junction(target, link)
     else:
         link.hardlink_to(target)
 
+
 def rm_link(link: Path):
-    if env.OS == 'windows' and link.is_dir():
+    if env.OS == "windows" and link.is_dir():
         rm_junction(link)
     else:
         link.unlink()
+
 
 def rm_fr(path: Path):
     if path.is_dir():
@@ -76,14 +88,16 @@ def rm_fr(path: Path):
     else:
         path.unlink(missing_ok=True)
 
+
 def cp_r(source: Path, dest: Path, preserve_junctions: bool = False):
     if source.is_dir():
         if preserve_junctions:
-            copytree_windows(source, dest) # slower
+            copytree_windows(source, dest)  # slower
         else:
             shutil.copytree(source, dest)
     else:
         shutil.copy2(source, dest, follow_symlinks=False)
+
 
 class AtomicChange:
     target: Path
@@ -97,7 +111,7 @@ class AtomicChange:
 
     def __enter__(self):
         if self.tmp.exists():
-            raise FileExistsError('_atomic_change_start sanity check failed!')
+            raise FileExistsError("_atomic_change_start sanity check failed!")
         if self.target.exists():
             cp_r(self.target, self.tmp, self.preserve_junctions)
         return self.tmp
@@ -110,18 +124,25 @@ class AtomicChange:
         else:
             # apply
             if not self.tmp.exists():
-                raise FileNotFoundError('_atomic_change_apply sanity check failed!!')
+                raise FileNotFoundError("_atomic_change_apply sanity check failed!!")
             rm_fr(self.target)
             self.tmp.rename(self.target)
 
+
 # shell utils -------------------------------------------------------------------------------------
+
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
-def run_cmd(*cmd: str, logger: logging.Logger, return_stdout: bool = False) -> list[str] | None:
+
+def run_cmd(
+    *cmd: str, logger: logging.Logger, return_stdout: bool = False
+) -> list[str] | None:
     logger.debug(f"running external cmd: {cmd}")
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
     if process.stderr:
         for line in process.stderr:
             logger.info(line.strip())
@@ -134,7 +155,9 @@ def run_cmd(*cmd: str, logger: logging.Logger, return_stdout: bool = False) -> l
         return stdout.splitlines()
     return []
 
+
 # misc utils --------------------------------------------------------------------------------------
+
 
 class Broadcast:
     _event: threading.Event
@@ -152,11 +175,14 @@ class Broadcast:
     def wait(self):
         return self._event.wait()
 
+
 def accepts_kwarg(func_sig: inspect.Signature, kwarg_name: str):
     if kwarg_name in func_sig.parameters:
         return func_sig.parameters[kwarg_name].kind in (
-            inspect.Parameter.POSITIONAL_OR_KEYWORD, 
-            inspect.Parameter.KEYWORD_ONLY
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
         )
-        
-    return any(p.kind == inspect.Parameter.VAR_KEYWORD for p in func_sig.parameters.values())
+
+    return any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in func_sig.parameters.values()
+    )

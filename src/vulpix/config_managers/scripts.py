@@ -15,10 +15,11 @@ class ScriptsManager(ConfigManager):
         config: Any,
         packages: list[str],
         logger: logging.Logger,
-        queue: ThreadedTaskQueue
+        queue: ThreadedTaskQueue,
     ) -> None:
         logger.debug(f"config: {config}")
         logger.debug(f"packages: {packages}")
         logger.info("scripts config manager TODO")
+
 
 config_manager_class = ScriptsManager

@@ -15,13 +15,21 @@ def sugary(title: str, color1: Callable, color2: Callable, color3: Callable) -> 
     remainder = color3(" " * (term.width - term.length(title)))
     return term.black(title + remainder)
 
+
 def task_summary(completed_tasks: dict[str, bool]) -> str:
     fmark, smark = term.red("failure"), term.green("success")
-    failed = [f"  - {task} ({fmark})" for task, success in completed_tasks.items() if not success]
-    succeeded = [f"  - {task} ({smark})" for task, success in completed_tasks.items() if success]
+    failed = [
+        f"  - {task} ({fmark})"
+        for task, success in completed_tasks.items()
+        if not success
+    ]
+    succeeded = [
+        f"  - {task} ({smark})" for task, success in completed_tasks.items() if success
+    ]
     lines = [*failed, *succeeded]
     lines.sort()
     return "\n".join(lines) + "\n"
+
 
 class TaskSection(ThreadedTaskQueue):
     # static shared settings
@@ -37,16 +45,24 @@ class TaskSection(ThreadedTaskQueue):
     _fullscreen: AbstractContextManager
     _scroll_region: AbstractContextManager
 
-    def __init__(self, name: str, blueprint: Blueprint, logger: logging.Logger, emote='(^人^)'):
+    def __init__(
+        self, name: str, blueprint: Blueprint, logger: logging.Logger, emote="(^人^)"
+    ):
         super().__init__(blueprint.settings.threads, logger)
         self.name = name
         self.emote = emote
         if self.alt_screen is None:
             self.alt_screen = blueprint.settings.alt_screen
 
-        self.header_title = sugary(name, term.on_turquoise, term.on_aquamarine3, term.on_teal)
-        self.footer_title = sugary("tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4)
-        self.footer_height = min(blueprint.settings.threads + 1, term.height // 2) # +1 for title
+        self.header_title = sugary(
+            name, term.on_turquoise, term.on_aquamarine3, term.on_teal
+        )
+        self.footer_title = sugary(
+            "tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4
+        )
+        self.footer_height = min(
+            blueprint.settings.threads + 1, term.height // 2
+        )  # +1 for title
 
         self.logger.debug(f"task_section footer height: {self.footer_height}")
         if self.footer_height <= 0:
@@ -57,9 +73,8 @@ class TaskSection(ThreadedTaskQueue):
         task_name = term.cyan(task_name)
         self.logger.debug(f"new task logger (verbose={self.verbose_loggers})")
         logging.attach_console_logging(
-            logger,
-            verbose=self.verbose_loggers,
-            prefix=("\t", f" {task_name}>"))
+            logger, verbose=self.verbose_loggers, prefix=("\t", f" {task_name}>")
+        )
         return logger
 
     def _update_footer(self):
@@ -101,17 +116,20 @@ class TaskSection(ThreadedTaskQueue):
             self._update_footer()
 
     def __enter__(self):
-        print() # line space
-        self.logger.info(term.orchid(self.emote) + " " + term.maroon1(self.name.upper()))
+        print()  # line space
+        self.logger.info(
+            term.orchid(self.emote) + " " + term.maroon1(self.name.upper())
+        )
 
         # init task section screen
         if self.alt_screen:
-            self.logger.info('entering alt screen')
+            self.logger.info("entering alt screen")
             self._fullscreen = term.fullscreen()
             self._fullscreen.__enter__()
-            sys.stdout.write(term.clear) 
-            self._scroll_region = term.scroll_region(top=1,
-                height=term.height - self.footer_height - 1)
+            sys.stdout.write(term.clear)
+            self._scroll_region = term.scroll_region(
+                top=1, height=term.height - self.footer_height - 1
+            )
             self._scroll_region.__enter__()
             sys.stdout.write(term.home + self.header_title + "\n")
 
@@ -133,7 +151,7 @@ class TaskSection(ThreadedTaskQueue):
             print(f"\n[{em}] summary:\n" + task_summary(self.completed_tasks))
 
             if tasks_failed:
-                self.logger.warning('some package tasks failed')
-                self.logger.info('run `vulpix replay <task>` to check task logs')
+                self.logger.warning("some package tasks failed")
+                self.logger.info("run `vulpix replay <task>` to check task logs")
 
         return return_value

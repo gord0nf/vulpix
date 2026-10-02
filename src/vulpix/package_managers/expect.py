@@ -17,11 +17,13 @@ from vulpix.utils import VulpixError, command_exists, logging
 
 
 def template_exists(name: str) -> bool:
-    return False # TODO
+    return False  # TODO
+
 
 @task_function
 def check_template(package: str, logger: logging.Logger):
-    pass # TODO
+    pass  # TODO
+
 
 @task_function
 def check_command(package: str, logger: logging.Logger):
@@ -29,26 +31,33 @@ def check_command(package: str, logger: logging.Logger):
         raise VulpixError(f"command doesn't exist: {package}")
     logger.info(f"command exists: {package}")
 
+
 @task_function
 def check_force(package: str, logger: logging.Logger):
     logger.info(f"force check: {package}")
 
+
 class ExpectManager(PackageManager):
     def check_packages(self, packages: list[str]) -> None:
-        pass # expect doesn't have strict packages, see above
+        pass  # expect doesn't have strict packages, see above
 
-    def get_package_diff(self, blueprint_packages: list[str]) -> PackageManager.PackageDiff:
+    def get_package_diff(
+        self, blueprint_packages: list[str]
+    ) -> PackageManager.PackageDiff:
         return self.PackageDiff(to_install=blueprint_packages)
 
     @task_function
-    def apply_changes(self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue) -> None:
+    def apply_changes(
+        self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue
+    ) -> None:
         for package in diff.to_install:
             task_name = f"install[{package}@expect]"
             if template_exists(package):
                 queue.run_task(task_name, check_template, package)
-            elif package.endswith('!'):
+            elif package.endswith("!"):
                 queue.run_task(task_name, check_force, package)
             else:
                 queue.run_task(task_name, check_command, package)
+
 
 package_manager_class = ExpectManager

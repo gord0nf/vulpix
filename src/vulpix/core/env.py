@@ -7,8 +7,9 @@ from typing import Final, Literal
 
 from vulpix.core import VulpixError
 
-type Os = Literal["windows", "linux"] # macos not supported
+type Os = Literal["windows", "linux"]  # macos not supported
 type Arch = Literal["arm32", "arm64", "x32", "x64"]
+
 
 def get_arch() -> Arch:
     match os.getenv("ARCH", platform.machine()).lower():
@@ -23,6 +24,7 @@ def get_arch() -> Arch:
         case _:
             raise VulpixError("arch not handled by devs (override with ARCH env var)")
 
+
 def get_os() -> Os:
     match os.getenv("OS", sys.platform).lower():
         case "linux" | "linux2":
@@ -32,27 +34,41 @@ def get_os() -> Os:
 
         case "windows_nt" | "win32" | "cygwin" | "msys":
             # check required windows env vars
-            for required_env in ["PROGRAMFILES", "ProgramData", "APPDATA", "LOCALAPPDATA", "TMP"]:
+            for required_env in [
+                "PROGRAMFILES",
+                "ProgramData",
+                "APPDATA",
+                "LOCALAPPDATA",
+                "TMP",
+            ]:
                 if not os.getenv(required_env):
-                    raise VulpixError(f"windows environmental var required: {required_env}")
+                    raise VulpixError(
+                        f"windows environmental var required: {required_env}"
+                    )
 
             return "windows"
 
         case _:
-            raise VulpixError("vulpix not supported on your os (override with OS env var)")
+            raise VulpixError(
+                "vulpix not supported on your os (override with OS env var)"
+            )
+
 
 def check_root() -> bool:
     try:
-        if OS == 'windows':
+        if OS == "windows":
             import ctypes
+
             return bool(ctypes.windll.shell32.IsUserAnAdmin())
         return os.geteuid() == 0
     except AttributeError:
         return False
 
+
 ARCH: Final[Arch] = get_arch()
 OS: Final[Os] = get_os()
 IS_ROOT: Final[bool] = check_root()
+
 
 def default_install():
     if IS_ROOT:
@@ -62,6 +78,7 @@ def default_install():
             return expandvars("$LOCALAPPDATA/Programs/vulpix")
         else:
             return expandvars("$HOME/.local/opt/vulpix")
+
 
 def default_data():
     if IS_ROOT:
@@ -75,6 +92,7 @@ def default_data():
         else:
             return expandvars("$HOME/.local/state/vulpix")
 
+
 def default_log():
     if IS_ROOT:
         if OS == "windows":
@@ -86,6 +104,7 @@ def default_log():
             return expandvars("$LOCALAPPDATA/vulpix/log")
         else:
             return expandvars("$HOME/.local/state/vulpix/log")
+
 
 def default_config():
     if IS_ROOT:
@@ -99,6 +118,7 @@ def default_config():
         else:
             return expandvars("$HOME/.config/vulpix")
 
+
 def default_tmp():
     if "TMP" in os.environ:
         return expandvars("$TMP/vulpix")
@@ -108,7 +128,9 @@ def default_tmp():
         return "/tmp/vulpix"
 
 
-INSTALL: Final[Path] = Path(os.getenv("VULPIX_INSTALL", os.getenv("VULPIX")) or default_install())
+INSTALL: Final[Path] = Path(
+    os.getenv("VULPIX_INSTALL", os.getenv("VULPIX")) or default_install()
+)
 DATA: Final[Path] = Path(os.getenv("VULPIX_DATA") or default_data())
 LOG: Final[Path] = Path(os.getenv("VULPIX_LOG") or default_log())
 CONFIG: Final[Path] = Path(os.getenv("VULPIX_CONFIG") or default_config())

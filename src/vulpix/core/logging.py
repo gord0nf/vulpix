@@ -11,6 +11,7 @@ basicConfig(level=DEBUG, handlers=[])
 
 FILE_FORMATTER = Formatter("%(asctime)s %(threadName)s [%(levelname)s]: %(message)s")
 
+
 def attach_log_file(logger: Logger) -> None:
     log_path = env.LOG.joinpath(logger.name + ".log")
     log_path.parent.mkdir(parents=True, exist_ok=True)

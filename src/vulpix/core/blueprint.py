@@ -6,12 +6,14 @@ from vulpix import config_managers, package_managers
 
 _cpu_count = os.cpu_count()
 
+
 @dataclass
 class Settings:
     threads: int = _cpu_count + 4 if _cpu_count else 4
     alt_screen: bool = True
     abort_uninstall_threshold: int = 10
     apt_mode: Literal["safe", "strict"] = "safe"
+
 
 @dataclass
 class Blueprint:
@@ -21,7 +23,7 @@ class Blueprint:
     # target config for each config manager to "align to" (quotes because the manager can really do
     # whatever it wants) (dict like {manager: config_struct}; see individual config manager
     # documentation for specific config_struct shape)
-    configs: dict[str, Any] 
+    configs: dict[str, Any]
 
     # path to dotfiles repo directory (optional)
     dotfiles: str | None = None

@@ -9,12 +9,15 @@ from vulpix.core.tasks import task_function
 
 class InvalidBlueprintConfig(Exception):
     """thrown when the blueprint config for a manager is invalid"""
+
     def __init__(self, manager: str, config_path: list[str], message: str):
         self.manager = manager
-        self.location = '.'.join(config_path)
+        self.location = ".".join(config_path)
         self.message = message
+
     def __str__(self):
         return f"invalid '{self.manager}' config in blueprint: {self.message} ({self.location})"
+
 
 class ConfigManager(ABC):
     """base class that all config managers (including external plugins) must inherit from"""
@@ -39,8 +42,10 @@ class ConfigManager(ABC):
         the option to spawn more tasks with the `queue` kwarg (like `queue.run_task(...)`).
         """
 
+
 manager_modules: dict[str, str] = get_manager_modules(namespace=sys.modules[__name__])
 manager_cache: dict[str, ConfigManager] = {}
+
 
 def get_manager(name: str) -> ConfigManager:
     """
@@ -56,7 +61,9 @@ def get_manager(name: str) -> ConfigManager:
         raise ManagerUnsupported(name, "cannot find config manager")
 
     module = importlib.import_module(manager_modules[name])
-    manager_instance = get_subclass_export_instance(module, "config_manager_class", interface=ConfigManager)
+    manager_instance = get_subclass_export_instance(
+        module, "config_manager_class", interface=ConfigManager
+    )
 
     manager_cache[name] = manager_instance
-    return manager_instance 
+    return manager_instance

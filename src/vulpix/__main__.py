@@ -18,5 +18,6 @@ def main():
         cli.logger.critical("an unexpected, uncaught error occured")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     main()

@@ -56,9 +56,10 @@ BIN_DIR = ROOT_DIR / "bin"
 STATUS_YAML = ROOT_DIR / "status.yaml"
 STATUS_LOCK = FileLock(STATUS_YAML.with_suffix(".lock"))
 STATUS_TIMEOUT = 10
-N_GRACE_DAYS = 30 # number of days before deactivated packages are actually destroyed
+N_GRACE_DAYS = 30  # number of days before deactivated packages are actually destroyed
 
 type PackageScript = Callable[[str, logging.Logger], list[str]]
+
 
 def get_package_script(package: str) -> PackageScript:
     module = library.get_package(package)
@@ -66,11 +67,15 @@ def get_package_script(package: str) -> PackageScript:
         raise InvalidPackage(package, "manual")
     main = getattr(module, "main", None)
     if not main or not callable(main):
-        raise TypeError(f"manual package script for '{package}' did not export main() correctly")
+        raise TypeError(
+            f"manual package script for '{package}' did not export main() correctly"
+        )
     return cast(PackageScript, main)
+
 
 def get_package_install_dir(package: str) -> Path:
     return ROOT_DIR / f"packages/{package}"
+
 
 def run_package_script(package: str, logger: logging.Logger) -> list[str]:
     logger.info(f"running script for package '{package}'")
@@ -78,7 +83,9 @@ def run_package_script(package: str, logger: logging.Logger) -> list[str]:
     install_dir = get_package_install_dir(package)
     return package_script(str(install_dir), logger)
 
+
 # status.yaml operations --------------------------------------------------------------------------
+
 
 class Status:
     @dataclass
@@ -108,13 +115,14 @@ class Status:
             raise VulpixError(f"invalid status.yaml at '{STATUS_YAML}': not a dict")
         try:
             self.by_package = {
-                k: dacite.from_dict(data_class=self.PackageStatus, data=v) for k, v in status.items()
+                k: dacite.from_dict(data_class=self.PackageStatus, data=v)
+                for k, v in status.items()
             }
         except dacite.DaciteError as e:
             self.logger.error(str(e))
             raise VulpixError(f"invalid status.yaml at '{STATUS_YAML}'")
         return self
-    
+
     def __exit__(self, exc_type, *_):
         if exc_type is not None:
             return False
@@ -143,15 +151,17 @@ class Status:
         self.logger.info(f"activating package entry '{package}'")
         self.by_package[package] = self.PackageStatus(
             active=True,
-            last_active=date.today(), # noqa: DTZ011
-            binaries=bin_paths
+            last_active=date.today(),  # noqa: DTZ011
+            binaries=bin_paths,
         )
 
     def deactivate_package_entry(self, package: str):
         self.logger.info(f"deactivating package entry '{package}'")
         self.by_package[package].active = False
 
-    def _get_bin_link_paths(self, package: str, relative_bin: Path, bin_dir: Path) -> tuple[Path, Path]:
+    def _get_bin_link_paths(
+        self, package: str, relative_bin: Path, bin_dir: Path
+    ) -> tuple[Path, Path]:
         """returns [target path, link path] pair for symlink"""
         install_dir = get_package_install_dir(package).resolve()
         bin = (install_dir / relative_bin).resolve()
@@ -162,7 +172,12 @@ class Status:
             if bin == install_dir:
                 link_name = package
             else:
-                salt = str(relative_bin).replace(":", "!").replace("/", "%").replace("\\", "%")
+                salt = (
+                    str(relative_bin)
+                    .replace(":", "!")
+                    .replace("/", "%")
+                    .replace("\\", "%")
+                )
                 link_name = package + "_" + salt
         else:
             link_name = bin.name
@@ -174,7 +189,9 @@ class Status:
         binaries = self.by_package[package].binaries
         with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
-                bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
+                bin_target, bin_link = self._get_bin_link_paths(
+                    package, Path(relative_bin), bin_dir
+                )
                 self.logger.debug(f"bin link: '{bin_link}' -> '{bin_target}'")
                 if bin_link.exists():
                     rm_link(bin_link)
@@ -185,7 +202,9 @@ class Status:
         binaries = self.by_package[package].binaries
         with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
-                _, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
+                _, bin_link = self._get_bin_link_paths(
+                    package, Path(relative_bin), bin_dir
+                )
                 if not bin_link.exists():
                     self.logger.warning(f"expected binary to be linked at '{bin_link}'")
                     continue
@@ -193,12 +212,15 @@ class Status:
                 self.logger.debug(f"unlinking: {bin_link}")
                 rm_link(bin_link)
 
+
 # main operations ---------------------------------------------------------------------------------
+
 
 def destory_package(package: str, status: Status):
     status.logger.info(f"destroying package '{package}'")
     rm_fr(get_package_install_dir(package))
     status.destroy_package_entry(package)
+
 
 @task_function
 def install_package(package: str, logger: logging.Logger):
@@ -216,6 +238,7 @@ def install_package(package: str, logger: logging.Logger):
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
+
 @task_function
 def uninstall_package(package: str, logger: logging.Logger):
     """will disable the installation"""
@@ -226,6 +249,7 @@ def uninstall_package(package: str, logger: logging.Logger):
             status.deactivate_package_entry(package)
         else:
             logger.info(f"'{package}' not installed or already deactivated")
+
 
 @task_function
 def update_package(package: str, logger: logging.Logger):
@@ -244,6 +268,7 @@ def update_package(package: str, logger: logging.Logger):
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
+
 @task_function
 def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQueue):
     """will destroy the installation, then run install script, then enable the package"""
@@ -255,17 +280,21 @@ def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQ
     task_name = f"install {package}@manual"
     queue.run_task(task_name, install_package, package)
 
+
 @task_function
 def garbage_collection(logger: logging.Logger):
     """actually destroys packages that have been disabled for too long"""
-    logger.info('checking for garbage packages')
+    logger.info("checking for garbage packages")
 
-    cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS) # noqa: DTZ011
+    cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS)  # noqa: DTZ011
     with Status(logger) as status:
-        garbage_packages = [p for p, s in status.by_package.items() if s.last_active < cutoff_date]
+        garbage_packages = [
+            p for p, s in status.by_package.items() if s.last_active < cutoff_date
+        ]
         for package in garbage_packages:
             logger.info(f"'{package}' for garbage collection")
             destory_package(package, status)
+
 
 class ManualManager(PackageManager):
     main_logger: logging.Logger
@@ -275,7 +304,7 @@ class ManualManager(PackageManager):
         ROOT_DIR.mkdir(parents=True, exist_ok=True)
         BIN_DIR.mkdir(parents=True, exist_ok=True)
         STATUS_YAML.touch()
-        
+
         self.main_logger = logging.getLogger("main")
 
     def check_packages(self, packages: list[str]) -> None:
@@ -283,14 +312,16 @@ class ManualManager(PackageManager):
             if not library.check_package(package):
                 raise InvalidPackage(package, "manual")
 
-    def get_package_diff(self, blueprint_packages: list[str]) -> PackageManager.PackageDiff:
+    def get_package_diff(
+        self, blueprint_packages: list[str]
+    ) -> PackageManager.PackageDiff:
         diff = self.PackageDiff()
 
         with Status(self.main_logger) as status:
             for package, pstatus in status.by_package.items():
                 if package in blueprint_packages:
                     diff.to_update.append(package)
-                elif pstatus.active: 
+                elif pstatus.active:
                     diff.to_uninstall.append(package)
             for package in blueprint_packages:
                 if package not in status.by_package:
@@ -298,7 +329,9 @@ class ManualManager(PackageManager):
         return diff
 
     @task_function
-    def apply_changes(self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue) -> None:
+    def apply_changes(
+        self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue
+    ) -> None:
         spawned_tasks: list[str] = []
 
         for package in diff.to_uninstall:
@@ -321,5 +354,6 @@ class ManualManager(PackageManager):
         # postsetup garbage_collection
         queue.wait_for_tasks(spawned_tasks)
         queue.run_task("postsetup[manual]", garbage_collection)
+
 
 package_manager_class = ManualManager

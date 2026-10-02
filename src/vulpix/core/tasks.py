@@ -6,7 +6,8 @@ from typing import Any
 
 from vulpix.utils import Broadcast, VulpixError, accepts_kwarg, logging
 
-type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
+type Task = tuple[str, Callable, tuple, dict]  # like task_name, func, args, kwargs
+
 
 class ThreadedTaskQueue(queue.Queue[Task]):
     """
@@ -35,7 +36,7 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         logger = logging.getLogger(f"tasks/{task_name}")
         logging.attach_log_file(logger)
         return logger
-    
+
     def _post_task_callback(self, task_name: str, exc: Exception | None):
         with self.completed_tasks_lock:
             self.completed_tasks[task_name] = exc is None
@@ -62,7 +63,13 @@ class ThreadedTaskQueue(queue.Queue[Task]):
 
                 error: Exception | None = None
                 try:
-                    f(*args, **kwargs, name=self.current_task, queue=self.q, logger=task_logger)
+                    f(
+                        *args,
+                        **kwargs,
+                        name=self.current_task,
+                        queue=self.q,
+                        logger=task_logger,
+                    )
                 except VulpixError as e:
                     error = e
                     task_logger.critical(e.message)
@@ -109,8 +116,9 @@ class ThreadedTaskQueue(queue.Queue[Task]):
         satisfied = False
         while not satisfied:
             self.done_broadcast.wait()
-            with self.completed_tasks_lock: # immediately get lock
+            with self.completed_tasks_lock:  # immediately get lock
                 satisfied = all(t in self.completed_tasks for t in tasks)
+
 
 def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     """decorator to mark a function as a task compatible with ThreadedTaskQueue usage"""
@@ -122,7 +130,7 @@ def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
         name: str,
         queue: ThreadedTaskQueue,
         logger: logging.Logger,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Exception | None:
         if accepts_kwarg(sig, "name"):
             kwargs["name"] = name
@@ -133,6 +141,6 @@ def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
 
         logger.debug(f"task: {name} (args={args}, kwargs={kwargs})")
         f(*args, **kwargs)
-    
-    wrapped.__name__ = f.__name__ # not necessary, just for debugging
+
+    wrapped.__name__ = f.__name__  # not necessary, just for debugging
     return wrapped

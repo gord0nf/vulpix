@@ -9,11 +9,14 @@ from vulpix.core.tasks import task_function
 
 class InvalidPackage(Exception):
     """thrown when a package is not supported by the manager"""
+
     def __init__(self, package: str, manager: str):
         self.package = package
         self.manager = manager
+
     def __str__(self):
         return f"invalid package '{self.package}' for '{self.manager}' manager"
+
 
 class PackageManager(ABC):
     """base class that all package managers (including external plugins) must inherit from"""
@@ -47,8 +50,10 @@ class PackageManager(ABC):
         the option to spawn more tasks with the `queue` kwarg (like `queue.run_task(...)`).
         """
 
+
 manager_modules: dict[str, str] = get_manager_modules(namespace=sys.modules[__name__])
 manager_cache: dict[str, PackageManager] = {}
+
 
 def get_manager(name: str) -> PackageManager:
     """
@@ -64,7 +69,9 @@ def get_manager(name: str) -> PackageManager:
         raise ManagerUnsupported(name, "cannot find package manager")
 
     module = importlib.import_module(manager_modules[name])
-    manager_instance = get_subclass_export_instance(module, "package_manager_class", interface=PackageManager)
+    manager_instance = get_subclass_export_instance(
+        module, "package_manager_class", interface=PackageManager
+    )
 
     manager_cache[name] = manager_instance
     return manager_instance

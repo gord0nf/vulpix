@@ -14,6 +14,7 @@ from vulpix.core.blueprint import Blueprint
 
 dacite_config = dacite.Config(strict=True)
 
+
 # https://stackoverflow.com/a/20666342
 def _merge(source: dict, destination: dict) -> dict:
     for key, value in source.items():
@@ -24,6 +25,7 @@ def _merge(source: dict, destination: dict) -> dict:
             destination[key] = value
     return destination
 
+
 def get_extended_path(value: str, parent_dir: Path) -> Path:
     path = Path(value).expanduser()
     if not path.is_absolute():
@@ -31,6 +33,7 @@ def get_extended_path(value: str, parent_dir: Path) -> Path:
     if not path.exists():
         raise ValueError(f"extended path does not exist: {path}")
     return path
+
 
 def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprint]:
     """returns both raw dict and processes Blueprint object."""
@@ -46,8 +49,12 @@ def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprin
         extends: list[str] = []
         if "extends" in blueprint_dict:
             extends = blueprint_dict.pop("extends")
-            if not isinstance(extends, list) and all(isinstance(i, str) for i in extends):
-                raise VulpixError(f"invalid 'extends' key in '{path}' (should be list of paths)")
+            if not isinstance(extends, list) and all(
+                isinstance(i, str) for i in extends
+            ):
+                raise VulpixError(
+                    f"invalid 'extends' key in '{path}' (should be list of paths)"
+                )
 
         accumulated = {}
         for extended in extends:
@@ -57,12 +64,10 @@ def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprin
             _merge(extended_blueprint, accumulated)
 
         blueprint_dict = _merge(blueprint_dict, accumulated)
-            
+
         # make sure its a valid blueprint
         blueprint = dacite.from_dict(
-            data_class=Blueprint,
-            data=blueprint_dict,
-            config=dacite_config
+            data_class=Blueprint, data=blueprint_dict, config=dacite_config
         )
     except (dacite.DaciteError, ValueError) as e:
         logger.error(str(e))
