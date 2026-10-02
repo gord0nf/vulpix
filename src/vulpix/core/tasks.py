@@ -1,7 +1,8 @@
 import queue
 import threading
 import inspect
-from typing import Callable, Protocol
+from typing import Any
+from collections.abc import Callable
 
 from vulpix.utils import VulpixError, Broadcast, logging, accepts_kwarg
 
@@ -117,11 +118,11 @@ def task_function(f: Callable) -> ThreadedTaskQueue.TaskFunction:
     sig = inspect.signature(f)
 
     def wrapped(
-        *args: tuple,
+        *args: Any,
         name: str,
         queue: ThreadedTaskQueue,
         logger: logging.Logger,
-        **kwargs: dict
+        **kwargs: Any
     ) -> Exception | None:
         if accepts_kwarg(sig, "name"):
             kwargs["name"] = name

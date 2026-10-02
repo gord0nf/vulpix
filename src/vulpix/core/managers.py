@@ -29,10 +29,10 @@ def get_manager_modules(namespace: ModuleType) -> dict[str, str]:
     entry_point_modules = _get_entry_point_modules(namespace.__name__)
     return namespace_modules | entry_point_modules
 
-def get_subclass_export[T: ABC](module: ModuleType, export: str, interface: type[T]) -> type[T]:
+def get_subclass_export_instance[T: ABC](module: ModuleType, export: str, interface: type[T]) -> T:
     if not hasattr(module, export):
-        raise ManagerUnsupported(f"module imported but expected '{export}' to be exported")
+        raise ManagerUnsupported(module.__name__, f"module imported but expected '{export}' to be exported")
     manager_class = getattr(module, export)
     if not issubclass(manager_class, interface):
-        raise ManagerUnsupported(f"module imported but '{export}' is not subclass of {interface}")
-    return manager_class
+        raise ManagerUnsupported(module.__name__, f"module imported but '{export}' is not subclass of {interface}")
+    return manager_class()

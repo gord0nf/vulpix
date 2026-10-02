@@ -41,7 +41,8 @@ from filelock import FileLock, Timeout
 from dataclasses import dataclass, asdict
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Callable, List
+from typing import List, cast
+from collections.abc import Callable
 
 from vulpix.utils import VulpixError, env, logging, AtomicChange, rm_link, link, rm_fr
 from vulpix.core.tasks import task_function, ThreadedTaskQueue
@@ -65,7 +66,7 @@ def get_package_script(package: str) -> PackageScript:
     main = getattr(module, "main", None)
     if not main or not callable(main):
         raise Exception(f"manual package script for '{package}' did not export main() correctly")
-    return main
+    return cast(PackageScript, main)
 
 def get_package_install_dir(package: str) -> Path:
     return ROOT_DIR / f"packages/{package}"
@@ -251,9 +252,7 @@ def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQ
 
     logger.info("spawning install task")
     task_name = f"install {package}@manual"
-    queue.run_foreground_task(task_name, install_package, package)
-    if not queue.completed_tasks[task_name]:
-        raise VulpixError(f"spawned install task '{task_name}' failed")
+    queue.run_task(task_name, install_package, package)
 
 @task_function
 def garbage_collection(logger: logging.Logger):

@@ -2,6 +2,7 @@ import sys
 import re
 import random
 import threading
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 
 from vulpix.core import VulpixError
@@ -10,7 +11,7 @@ from vulpix.cli.logging import term, term_lock
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.tasks import ThreadedTaskQueue
 
-def sugary(title: str, color1: function, color2: function, color3: function) -> str:
+def sugary(title: str, color1: Callable, color2: Callable, color3: Callable) -> str:
     title = color1(" ~(￣▽￣)~* ") + color2("   " + title.upper() + "   ")
     remainder = color3(" " * (term.width - term.length(title)))
     return term.black(title + remainder)
@@ -50,7 +51,7 @@ class TaskSection(ThreadedTaskQueue):
 
         self.logger.debug(f"task_section footer height: {self.footer_height}")
         if self.footer_height <= 0:
-            raise VulipxError("not enough height for task section footer")
+            raise VulpixError("not enough height for task section footer")
 
     def _get_task_logger(self, task_name: str) -> logging.Logger:
         logger = super()._get_task_logger(task_name)
@@ -88,7 +89,7 @@ class TaskSection(ThreadedTaskQueue):
         label = term.red("failed") if exc else term.green("succeeded")
         self.logger.info(f"{task_name} ({label})")
 
-    def run_task(self, name: str, f: TaskFunction, *args, **kwargs):
+    def run_task(self, name: str, f: ThreadedTaskQueue.TaskFunction, *args, **kwargs):
         """updates footer when task started"""
         super().run_task(name, f, *args, **kwargs)
         if self.alt_screen:

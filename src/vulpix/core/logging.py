@@ -3,7 +3,7 @@ NOTE: this doesn't handle clearing env.LOG directory (that's the cli's job); log
 default.
 """
 
-from logging import *
+from logging import * # pyright: ignore[reportWildcardImportFromLibrary]
 
 from vulpix.core import env
 

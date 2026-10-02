@@ -13,7 +13,7 @@ class InvalidBlueprintConfig(Exception):
         self.location = '.'.join(config_path)
         self.message = message
     def __str__(self):
-        return f"invalid '{manager}' config in blueprint: {message} ({location})"
+        return f"invalid '{self.manager}' config in blueprint: {self.message} ({self.location})"
 
 class ConfigManager(ABC):
     """base class that all config managers (including external plugins) must inherit from"""
@@ -57,8 +57,7 @@ def get_manager(name: str) -> ConfigManager:
         raise ManagerUnsupported(name, "cannot find config manager")
 
     module = importlib.import_module(manager_modules[name])
-    manager_class = get_subclass_export(module, "config_manager_class", interface=ConfigManager)
+    manager_instance = get_subclass_export_instance(module, "config_manager_class", interface=ConfigManager)
 
-    manager_instance = manager_class()
     manager_cache[name] = manager_instance
     return manager_instance 

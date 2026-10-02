@@ -27,7 +27,7 @@ def attach_console_logging(logger: Logger, verbose: bool, prefix: tuple[str, str
     formatter = ColoredLogFormatter(f"{prefix[0]}%(levelname)s>{prefix[1]} %(message)s")
     handler.setFormatter(formatter)
     handler.setLevel(DEBUG if verbose else INFO)
-    handler.lock = term_lock
+    handler.lock = term_lock   # pyright: ignore # needs to be an RLock, idk why it wants Lock...
     
     logger.addHandler(handler)
 

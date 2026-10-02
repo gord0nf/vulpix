@@ -30,7 +30,7 @@ def get_extended_path(value: str, parent_dir: Path) -> Path:
     if not path.is_absolute():
         path = parent_dir / path
     if not path.exists():
-        raise SchemaError("extended path does not exist: %s" % (path,))
+        raise ValueError(f"extended path does not exist: {path}")
     return path
 
 def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprint]:
@@ -43,23 +43,23 @@ def expand_blueprint(path: Path, logger: logging.Logger) -> tuple[dict, Blueprin
     if blueprint_dict is None:
         blueprint_dict = {}
 
-    extends: list[str] = []
-    if "extends" in blueprint_dict:
-        extends = blueprint_dict.pop("extends")
-        if not isinstance(extends, list[str]):
-            raise VulpixError(f"invalid 'extends' key in '{path}' (should be list of paths)")
-
-    accumulated = {}
-    for extended in extends:
-        logger.debug(f"{path} extends {extended_path}")
-        extended_path = get_extended_path(extended, path.parent)
-        extended_blueprint, _ = expand_blueprint(extended_path, logger)
-        _merge(extended_blueprint, accumulated)
-
-    blueprint_dict = _merge(blueprint_dict, accumulated)
-
-    # make sure its a valid blueprint
     try:
+        extends: list[str] = []
+        if "extends" in blueprint_dict:
+            extends = blueprint_dict.pop("extends")
+            if not isinstance(extends, list) and all(isinstance(i, str) for i in extends):
+                raise VulpixError(f"invalid 'extends' key in '{path}' (should be list of paths)")
+
+        accumulated = {}
+        for extended in extends:
+            extended_path = get_extended_path(extended, path.parent)
+            logger.debug(f"{path} extends {extended_path}")
+            extended_blueprint, _ = expand_blueprint(extended_path, logger)
+            _merge(extended_blueprint, accumulated)
+
+        blueprint_dict = _merge(blueprint_dict, accumulated)
+            
+        # make sure its a valid blueprint
         blueprint = dacite.from_dict(
             data_class=Blueprint,
             data=blueprint_dict,

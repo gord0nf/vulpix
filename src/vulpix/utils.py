@@ -119,11 +119,12 @@ class AtomicChange:
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
-def run_cmd(*cmd: list[str], logger: logging.Logger, return_stdout: bool = False) -> list[str] | None:
+def run_cmd(*cmd: str, logger: logging.Logger, return_stdout: bool = False) -> list[str] | None:
     logger.debug(f"running external cmd: {cmd}")
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    for line in process.stderr:
-        logger.info(line.strip())
+    if process.stderr:
+        for line in process.stderr:
+            logger.info(line.strip())
 
     stdout, _ = process.communicate()
     if process.returncode != 0:

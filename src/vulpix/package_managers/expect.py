@@ -16,7 +16,7 @@ from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.package_managers import PackageManager
 
 def template_exists(name: str) -> bool:
-    pass # TODO
+    return False # TODO
 
 @task_function
 def check_template(package: str, logger: logging.Logger):
@@ -33,7 +33,7 @@ def check_force(package: str, logger: logging.Logger):
     logger.info(f"force check: {package}")
 
 class ExpectManager(PackageManager):
-    def check_packages(self, *_) -> None:
+    def check_packages(self, packages: list[str]) -> None:
         pass # expect doesn't have strict packages, see above
 
     def get_package_diff(self, blueprint_packages: list[str]) -> PackageManager.PackageDiff:

@@ -12,7 +12,7 @@ class InvalidPackage(Exception):
         self.package = package
         self.manager = manager
     def __str__(self):
-        return f"invalid package '{e.package}' for '{e.manager}' manager"
+        return f"invalid package '{self.package}' for '{self.manager}' manager"
 
 class PackageManager(ABC):
     """base class that all package managers (including external plugins) must inherit from"""
@@ -66,8 +66,7 @@ def get_manager(name: str) -> PackageManager:
         raise ManagerUnsupported(name, "cannot find package manager")
 
     module = importlib.import_module(manager_modules[name])
-    manager_class = get_subclass_export(module, "package_manager_class", interface=PackageManager)
+    manager_instance = get_subclass_export_instance(module, "package_manager_class", interface=PackageManager)
 
-    manager_instance = manager_class()
     manager_cache[name] = manager_instance
     return manager_instance

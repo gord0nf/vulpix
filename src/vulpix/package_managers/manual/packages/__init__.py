@@ -3,7 +3,7 @@ import types
 import subprocess
 import importlib
 import importlib.util
-from typing import Callable
+from collections.abc import Callable
 
 from vulpix.utils import logging, run_cmd
 
@@ -30,7 +30,7 @@ def simple_shell_wrapper(main: Callable[[str, logging.Logger], list[str]]):
     bin_paths = main(sys.argv[1], logger)
     print("\n".join(bin_paths)) # return line seperated list for shell
 
-def run_external_script(script: str, *args: list[str], logger: logging.Logger) -> list[str]:
+def run_external_script(script: str, *args: str, logger: logging.Logger) -> list[str]:
     cmd = [script, *args]
     if script.endswith(".ps1"):
         cmd.insert(0, "powershell")

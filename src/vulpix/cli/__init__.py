@@ -5,11 +5,13 @@ import argparse
 import subprocess
 from pathlib import Path
 from typing import Literal
+from collections.abc import Callable
 from dataclasses import astuple
 
 from vulpix import __version__, package_managers, config_managers
 from vulpix.core import VulpixError, tasks, env
 from vulpix.core.blueprint import Blueprint
+from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -26,15 +28,15 @@ def parse_blueprint(path: Path, logger: logging.Logger) -> Blueprint:
     return blueprint
 
 def build_package_filter(
-    apply: re.Pattern | None,
-    clean: re.Pattern | None,
-    reinstall: re.Pattern | None
+    apply: re.Pattern[str] | None,
+    clean: re.Pattern[str] | None,
+    reinstall: re.Pattern[str] | None
 ) -> Callable:
     def filter_package_changes(manager: str, changes: package_managers.PackageManager.PackageDiff):
-        def filter_packages(packages: list[str], regex: re.Pattern, negate=False) -> list[str]:
+        def filter_packages(packages: list[str], regex: re.Pattern[str], negate=False) -> list[str]:
             if negate:
-                return [p for p in packages if not re.match(regex, f"{p}@{manager}")]
-            return [p for p in packages if re.match(regex, f"{p}@{manager}")]
+                return [p for p in packages if not regex.match(f"{p}@{manager}")]
+            return [p for p in packages if regex.match(f"{p}@{manager}")]
 
         # reinstall takes precedent (this is also different since we are telling it to reinstall
         # instead of install/update, rather than just filtering)
@@ -58,7 +60,7 @@ def build_package_filter(
 
     return filter_package_changes
 
-def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
+def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: logging.Logger):
     if len(blueprint.packages) == 0:
         logger.warning(f"no package managers in blueprint, skipping package management")
         return
@@ -77,7 +79,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
 
             section.run_task(f"package_manager[{manager_id}]", manager.apply_changes, diff)
 
-def package_config_section(blueprint: Blueprint, package_filter: Callable, logger: Logger):
+def package_config_section(blueprint: Blueprint, package_filter: Callable, logger: logging.Logger):
     if len(blueprint.configs) == 0:
         logger.warning(f"no config managers in blueprint, skipping config management")
         return
@@ -98,7 +100,7 @@ def package_config_section(blueprint: Blueprint, package_filter: Callable, logge
             section.run_task(f"config_manager[{manager_id}]", manager.apply_config, config, packages)
 
 class Cli(argparse.Namespace):
-    logger: Logger
+    logger: logging.Logger
 
     # generic options
     help: bool = False
@@ -109,10 +111,10 @@ class Cli(argparse.Namespace):
     command: Literal["sync", "dotfiles", "blueprint"] | None = None
 
     # sync command
-    apply: re.Pattern | None = None
-    clean: re.Pattern | None = None
-    config: re.Pattern | None = None
-    reinstall: re.Pattern | None = None
+    apply: re.Pattern[str] | None = None
+    clean: re.Pattern[str] | None = None
+    config: re.Pattern[str] | None = None
+    reinstall: re.Pattern[str] | None = None
 
     # dotfiles command
     path: str | None = None
@@ -121,7 +123,7 @@ class Cli(argparse.Namespace):
     edit: bool = False
 
     # replay command
-    log: re.Pattern | None = None
+    log: re.Pattern[str] | None = None
 
     def __init__(self):
         cool_dude = term.orchid("b(￣▽￣)d")
@@ -234,7 +236,8 @@ class Cli(argparse.Namespace):
             package_manage_section(blueprint, package_filter, self.logger)
 
         if self.config is not None:
-            package_filter = lambda packages: [p for p in packages if re.match(self.config, p)]
+            config_pattern = self.config
+            package_filter = lambda packages: [p for p in packages if config_pattern.match(p)]
             package_config_section(blueprint, package_filter, self.logger)
 
     def dotfiles_command(self, blueprint_path: Path):
