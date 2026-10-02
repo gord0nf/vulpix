@@ -89,13 +89,16 @@ def task_summary(tasks: dict[ManagerTask, bool]) -> str:
 
 def print_section_summary(tasks: dict[ManagerTask, bool], logger: logging.Logger):
     tasks_failed = any(not status for status in tasks.values())
-    if len(tasks) > 0:
-        em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
-        print(f"\n[{em}] summary:\n" + task_summary(tasks))
+    if tasks_failed:
+        logger.warning(
+            "some package tasks failed (`vulpix replay <task>` to check logs)"
+        )
 
-        if tasks_failed:
-            logger.warning("some package tasks failed")
-            logger.info("run `vulpix replay <task>` to check task logs")
+    em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
+    print(f"[{em}] summary:\n" + task_summary(tasks))
+
+
+emote = "(*￣０￣)ノ"
 
 
 def package_manage_section(
@@ -105,9 +108,7 @@ def package_manage_section(
         logger.warning("no package managers in blueprint, skipping package management")
         return
 
-    with TaskSection(
-        "package management", blueprint, logger, emote="(*￣０￣)ノ"
-    ) as section:
+    with TaskSection("package management", blueprint, logger, emote) as section:
         for manager_id, packages in blueprint.packages.items():
             manager = package_managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -126,7 +127,8 @@ def package_manage_section(
 
     # section summary
     package_tasks = completed_package_tasks(section.completed_tasks)
-    print_section_summary(package_tasks, logger)
+    if len(package_tasks) > 0:
+        print_section_summary(package_tasks, logger)
 
 
 def package_config_section(
@@ -149,7 +151,7 @@ def package_config_section(
             "no packages are visible to config (hidden by filtering or failure); running config anyways"
         )
 
-    with TaskSection("config management", blueprint, logger, emote="(^人^)") as section:
+    with TaskSection("config management", blueprint, logger, emote) as section:
         for manager_id, config in blueprint.configs.items():
             manager = config_managers.get_manager(manager_id)
             logger.debug(f"configmanager {manager_id}")
@@ -159,7 +161,8 @@ def package_config_section(
 
     # section summary
     package_tasks = completed_package_tasks(section.completed_tasks)
-    print_section_summary(package_tasks, logger)
+    if len(package_tasks) > 0:
+        print_section_summary(package_tasks, logger)
 
 
 class Cli(argparse.Namespace):
@@ -377,7 +380,6 @@ class Cli(argparse.Namespace):
         blueprint_path = env.CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
             blueprint_path = Path(self.blueprint)
-        self.logger.info(f"using blueprint at '{blueprint_path}'")
 
         if not blueprint_path.exists():
             # TODO: ask if you wanna copy the default
