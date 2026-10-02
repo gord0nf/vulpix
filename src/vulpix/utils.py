@@ -1,12 +1,12 @@
-import os
-import stat
-import shutil
-import threading
-import subprocess
 import inspect
+import os
+import shutil
+import stat
+import subprocess
+import threading
 from pathlib import Path
 
-from vulpix.core import env, logging, VulpixError
+from vulpix.core import VulpixError, env, logging
 
 # file system utils -------------------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ def is_junction(path: Path) -> bool:
 
 def create_junction(target: Path, link: Path):
     cmd = ['mklink', '/j', os.fsdecode(str(link.resolve())), os.fsdecode(str(target.resolve()))]
-    proc = subprocess.run(cmd, shell=True, capture_output=True)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, check=False)
     if proc.returncode:
         raise OSError(proc.stderr.decode().strip())
 
@@ -54,7 +54,7 @@ def link(target: Path, link: Path, logger: logging.Logger):
     try: 
         link.symlink_to(target, target_is_directory=target.is_dir())
         return
-    except OSError as e:
+    except OSError:
         logger.debug("symlink failed", exc_info=True)
         logger.warning("symlink failed. defaulting to hardlink/junction.")
 
@@ -97,7 +97,7 @@ class AtomicChange:
 
     def __enter__(self):
         if self.tmp.exists():
-            raise Exception('_atomic_change_start sanity check failed!')
+            raise FileExistsError('_atomic_change_start sanity check failed!')
         if self.target.exists():
             cp_r(self.target, self.tmp, self.preserve_junctions)
         return self.tmp
@@ -110,7 +110,7 @@ class AtomicChange:
         else:
             # apply
             if not self.tmp.exists():
-                raise Exception('_atomic_change_apply sanity check failed!!')
+                raise FileNotFoundError('_atomic_change_apply sanity check failed!!')
             rm_fr(self.target)
             self.tmp.rename(self.target)
 

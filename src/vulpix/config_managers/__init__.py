@@ -1,10 +1,11 @@
-import sys
 import importlib
+import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
-from vulpix.core import VulpixError, tasks
 from vulpix.core.managers import *
+from vulpix.core.tasks import task_function
+
 
 class InvalidBlueprintConfig(Exception):
     """thrown when the blueprint config for a manager is invalid"""
@@ -24,10 +25,9 @@ class ConfigManager(ABC):
         checks the config object the user has it their blueprint. raises InvalidBlueprintConfig if
         it's not valid.
         """
-        pass
 
     @abstractmethod
-    @tasks.task_function
+    @task_function
     def apply_config(self, config: Any, packages: list[str], **_) -> None:
         """
         applies configuration for the specified packages, based on `config` which is the object from
@@ -38,7 +38,6 @@ class ConfigManager(ABC):
         this must be a task_function; it should use the `logger` kwarg for logging, and it has
         the option to spawn more tasks with the `queue` kwarg (like `queue.run_task(...)`).
         """
-        pass
 
 manager_modules: dict[str, str] = get_manager_modules(namespace=sys.modules[__name__])
 manager_cache: dict[str, ConfigManager] = {}

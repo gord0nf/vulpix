@@ -1,8 +1,7 @@
-import sys
-import types
-import subprocess
 import importlib
 import importlib.util
+import sys
+import types
 from collections.abc import Callable
 
 from vulpix.utils import logging, run_cmd

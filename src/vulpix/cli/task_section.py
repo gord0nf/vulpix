@@ -1,15 +1,14 @@
 import sys
-import re
-import random
 import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 
-from vulpix.core import VulpixError
 from vulpix.cli import logging
 from vulpix.cli.logging import term, term_lock
+from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.tasks import ThreadedTaskQueue
+
 
 def sugary(title: str, color1: Callable, color2: Callable, color3: Callable) -> str:
     title = color1(" ~(￣▽￣)~* ") + color2("   " + title.upper() + "   ")

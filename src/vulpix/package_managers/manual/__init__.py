@@ -35,18 +35,19 @@ directories containing binaries, seperated by newlines. (these become part of th
 `status.yaml`)
 """
 
-import yaml
-import dacite
-from filelock import FileLock, Timeout
-from dataclasses import dataclass, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import List, cast
-from collections.abc import Callable
+from typing import cast
 
-from vulpix.utils import VulpixError, env, logging, AtomicChange, rm_link, link, rm_fr
-from vulpix.core.tasks import task_function, ThreadedTaskQueue
-from vulpix.package_managers import PackageManager, InvalidPackage
+import dacite
+import yaml
+from filelock import FileLock, Timeout
+
+from vulpix.core.tasks import ThreadedTaskQueue, task_function
+from vulpix.package_managers import InvalidPackage, PackageManager
+from vulpix.utils import AtomicChange, VulpixError, env, link, logging, rm_fr, rm_link
 
 from . import packages as library
 
@@ -57,7 +58,7 @@ STATUS_LOCK = FileLock(STATUS_YAML.with_suffix(".lock"))
 STATUS_TIMEOUT = 10
 N_GRACE_DAYS = 30 # number of days before deactivated packages are actually destroyed
 
-type PackageScript = Callable[[str, logging.Logger], List[str]]
+type PackageScript = Callable[[str, logging.Logger], list[str]]
 
 def get_package_script(package: str) -> PackageScript:
     module = library.get_package(package)
@@ -65,7 +66,7 @@ def get_package_script(package: str) -> PackageScript:
         raise InvalidPackage(package, "manual")
     main = getattr(module, "main", None)
     if not main or not callable(main):
-        raise Exception(f"manual package script for '{package}' did not export main() correctly")
+        raise TypeError(f"manual package script for '{package}' did not export main() correctly")
     return cast(PackageScript, main)
 
 def get_package_install_dir(package: str) -> Path:
@@ -142,7 +143,7 @@ class Status:
         self.logger.info(f"activating package entry '{package}'")
         self.by_package[package] = self.PackageStatus(
             active=True,
-            last_active=date.today(),
+            last_active=date.today(), # noqa: DTZ011
             binaries=bin_paths
         )
 
@@ -184,7 +185,7 @@ class Status:
         binaries = self.by_package[package].binaries
         with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
             for relative_bin in binaries:
-                bin_target, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
+                _, bin_link = self._get_bin_link_paths(package, Path(relative_bin), bin_dir)
                 if not bin_link.exists():
                     self.logger.warning(f"expected binary to be linked at '{bin_link}'")
                     continue
@@ -259,7 +260,7 @@ def garbage_collection(logger: logging.Logger):
     """actually destroys packages that have been disabled for too long"""
     logger.info('checking for garbage packages')
 
-    cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS)
+    cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS) # noqa: DTZ011
     with Status(logger) as status:
         garbage_packages = [p for p, s in status.by_package.items() if s.last_active < cutoff_date]
         for package in garbage_packages:

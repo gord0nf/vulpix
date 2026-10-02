@@ -1,8 +1,8 @@
 import os
-import sys
 import platform
-from pathlib import Path
+import sys
 from os.path import expandvars
+from pathlib import Path
 from typing import Final, Literal
 
 from vulpix.core import VulpixError
@@ -45,7 +45,7 @@ def check_root() -> bool:
     try:
         if OS == 'windows':
             import ctypes
-            IS_ROOT = bool(ctypes.windll.shell32.IsUserAnAdmin())
+            return bool(ctypes.windll.shell32.IsUserAnAdmin())
         return os.geteuid() == 0
     except AttributeError:
         return False

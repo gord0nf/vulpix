@@ -1,10 +1,10 @@
+import inspect
 import queue
 import threading
-import inspect
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
-from vulpix.utils import VulpixError, Broadcast, logging, accepts_kwarg
+from vulpix.utils import Broadcast, VulpixError, accepts_kwarg, logging
 
 type Task = tuple[str, Callable, tuple, dict] # like task_name, func, args, kwargs
 

@@ -5,8 +5,9 @@ an entry point group.
 
 import pkgutil
 from abc import ABC
-from types import ModuleType
 from importlib.metadata import entry_points
+from types import ModuleType
+
 
 class ManagerUnsupported(Exception):
     """thrown when manager cannot be used on the current system/user"""

@@ -1,8 +1,8 @@
 import os
-from typing import Literal, Dict, List, Any
 from dataclasses import dataclass, field
+from typing import Any, Literal
 
-from vulpix import package_managers, config_managers
+from vulpix import config_managers, package_managers
 
 _cpu_count = os.cpu_count()
 
@@ -16,12 +16,12 @@ class Settings:
 @dataclass
 class Blueprint:
     # target packages for each package manager to align to (dict like {manager: package_list})
-    packages: Dict[str, List[str]]
+    packages: dict[str, list[str]]
 
     # target config for each config manager to "align to" (quotes because the manager can really do
     # whatever it wants) (dict like {manager: config_struct}; see individual config manager
     # documentation for specific config_struct shape)
-    configs: Dict[str, Any] 
+    configs: dict[str, Any] 
 
     # path to dotfiles repo directory (optional)
     dotfiles: str | None = None

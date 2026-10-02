@@ -1,8 +1,9 @@
 from typing import Any
 
-from vulpix.core import logging
-from vulpix.core.tasks import task_function, ThreadedTaskQueue
 from vulpix.config_managers import ConfigManager
+from vulpix.core import logging
+from vulpix.core.tasks import ThreadedTaskQueue, task_function
+
 
 class ScriptsManager(ConfigManager):
     def check_config(self, config: Any) -> None:

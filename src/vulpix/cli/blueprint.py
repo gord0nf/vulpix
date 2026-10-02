@@ -3,14 +3,13 @@ NOTE: seperate from core/blueprint.py which has all the data struct definitions;
 parse blueprint yaml.
 """
 
-import os
-import sys
-import dacite
-import yaml
 from pathlib import Path
 
-from vulpix.core import VulpixError
+import dacite
+import yaml
+
 from vulpix.cli import logging
+from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
 
 dacite_config = dacite.Config(strict=True)

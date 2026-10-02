@@ -1,18 +1,18 @@
-import sys
+import argparse
 import os
 import re
-import argparse
 import subprocess
-from pathlib import Path
-from typing import Literal
 from collections.abc import Callable
 from dataclasses import astuple
+from pathlib import Path
+from typing import Literal
 
-from vulpix import __version__, package_managers, config_managers
-from vulpix.core import VulpixError, tasks, env
-from vulpix.core.blueprint import Blueprint
+from vulpix import __version__, config_managers, package_managers
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
+from vulpix.core import VulpixError, env
+from vulpix.core.blueprint import Blueprint
+
 
 def regex_arg(arg: str) -> re.Pattern[str]:
     try:
@@ -62,7 +62,7 @@ def build_package_filter(
 
 def package_manage_section(blueprint: Blueprint, package_filter: Callable, logger: logging.Logger):
     if len(blueprint.packages) == 0:
-        logger.warning(f"no package managers in blueprint, skipping package management")
+        logger.warning("no package managers in blueprint, skipping package management")
         return
 
     with TaskSection("package management", blueprint, logger, emote='(*￣０￣)ノ') as section:
@@ -81,7 +81,7 @@ def package_manage_section(blueprint: Blueprint, package_filter: Callable, logge
 
 def package_config_section(blueprint: Blueprint, package_filter: Callable, logger: logging.Logger):
     if len(blueprint.configs) == 0:
-        logger.warning(f"no config managers in blueprint, skipping config management")
+        logger.warning("no config managers in blueprint, skipping config management")
         return
 
     # config managers shouldn't care about package managers, so we just get a list of the package
@@ -91,7 +91,7 @@ def package_config_section(blueprint: Blueprint, package_filter: Callable, logge
     packages = package_filter(packages)
     logger.debug(f"config packages: {packages}")
     if len(packages) == 0:
-        logger.warning(f"no packages are visible to config (hidden by filtering or failure); running config anyways")
+        logger.warning("no packages are visible to config (hidden by filtering or failure); running config anyways")
 
     with TaskSection("config management", blueprint, logger, emote='(^人^)') as section:
         for manager_id, config in blueprint.configs.items():
@@ -242,7 +242,6 @@ class Cli(argparse.Namespace):
 
     def dotfiles_command(self, blueprint_path: Path):
         logging.clear_logs()
-        pass
 
     def blueprint_command(self, blueprint: Path):
         logging.clear_logs()

@@ -1,6 +1,7 @@
-import sys
 import shutil
+import sys
 import threading
+
 from blessed import Terminal
 
 from vulpix.core.logging import *
@@ -8,16 +9,17 @@ from vulpix.core.logging import *
 term = Terminal()
 term_lock = threading.RLock()
 
+LOG_COLORS = {
+    DEBUG: term.purple,
+    INFO: term.blue,
+    WARNING: term.yellow,
+    ERROR: term.red,
+    CRITICAL: term.bold_red
+}
+
 class ColoredLogFormatter(Formatter):
-    COLORS = {
-        DEBUG: term.purple,
-        INFO: term.blue,
-        WARNING: term.yellow,
-        ERROR: term.red,
-        CRITICAL: term.bold_red
-    }
     def format(self, record):
-        log_color = self.COLORS.get(record.levelno, None)
+        log_color = LOG_COLORS.get(record.levelno, None)
         if log_color:
             record.levelname = log_color(record.levelname)
         return super().format(record)
