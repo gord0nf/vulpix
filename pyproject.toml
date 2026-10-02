@@ -1,13 +1,21 @@
-[build-system]
-requires = ["hatchling >= 1.26"]
-build-backend = "hatchling.build"
-
 [project]
 name = "vulpix"
 dynamic = ["version", "description"]
 
+[project.scripts]
+vulpix = "vulpix.__main__:main"
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
 [tool.hatch.version]
 path = "src/vulpix/__init__.py"
 
-[project.scripts]
-vulpix = "vulpix.__main__:main"
+[tool.pyright]
+include = ["src"]
+exclude = ["**/__pycache__"]
+defineConstant = { DEBUG = true }
+reportMissingImports = "error"
+pythonVersion = "3.14"
+pythonPlatform = "All"
