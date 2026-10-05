@@ -47,7 +47,15 @@ from dacite import DaciteError
 from vulpix.core import dirs, dotenv, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
-from vulpix.utils import AtomicChange, DataclassFile, VulpixError, link, rm_fr, rm_link
+from vulpix.utils import (
+    AtomicChange,
+    DataclassFile,
+    VulpixError,
+    link,
+    path_as_salt,
+    rm_fr,
+    rm_link,
+)
 
 from . import packages as library
 
@@ -135,13 +143,7 @@ class Status:
             if bin == install_dir:
                 link_name = package
             else:
-                salt = (
-                    str(relative_bin)
-                    .replace(":", "!")
-                    .replace("/", "%")
-                    .replace("\\", "%")
-                )
-                link_name = package + "_" + salt
+                link_name = package + "_" + path_as_salt(relative_bin)
         else:
             link_name = bin.name
 

@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, ClassVar, Protocol, TextIO
+from typing import Any, ClassVar, Protocol, Self, TextIO
 
 import dacite
 from filelock import FileLock, Timeout
@@ -107,6 +107,11 @@ def cp_r(source: Path, dest: Path, preserve_junctions: bool = False):
         shutil.copy2(source, dest, follow_symlinks=False)
 
 
+def is_executable(path: Path) -> bool:
+    # TODO: better way to check if exec on windows?
+    return system.OS != "windows" and path.is_file() and os.access(path, os.X_OK)
+
+
 class AtomicChange:
     target: Path
     tmp: Path
@@ -137,6 +142,10 @@ class AtomicChange:
             self.tmp.rename(self.target)
 
 
+def path_as_salt(path: Path):
+    return str(path).replace(":", "!").replace("/", "_").replace("\\", "_")
+
+
 # shell utils -------------------------------------------------------------------------------------
 
 
@@ -144,24 +153,39 @@ def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
 
 
-def run_cmd(
-    *cmd: str, logger: logging.Logger, return_stdout: bool = False
-) -> list[str] | None:
-    logger.debug(f"running external cmd: {cmd}")
-    process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    if process.stderr:
-        for line in process.stderr:
-            logger.info(line.strip())
+class LoggedCommand:
+    cmd: list[str]
+    logger: logging.Logger
 
-    stdout, _ = process.communicate()
-    if process.returncode != 0:
-        raise VulpixError("external script failed")
+    stdout: list[str] | None = None
+    stderr: list[str] | None = None
 
-    if stdout:
-        return stdout.splitlines()
-    return []
+    def __init__(self, *cmd: str, logger: logging.Logger):
+        self.cmd = list(cmd)
+        self.logger = logger
+
+    def run(self, log_stdout: bool = True) -> Self:
+        if log_stdout:
+            stdout_fd = subprocess.PIPE
+            stderr_fd = subprocess.STDOUT
+        else:
+            stdout_fd = subprocess.PIPE
+            stderr_fd = subprocess.PIPE
+
+        p = subprocess.Popen(self.cmd, stdout=stdout_fd, stderr=stderr_fd, text=True)
+        log_stream = p.stdout if log_stdout else p.stderr
+        if log_stream:
+            for line in log_stream:
+                self.logger.info(line.strip())
+
+        if p.returncode:
+            raise VulpixError("external script failed")
+
+        stdout, stderr = p.communicate()
+        self.stdout = stdout.split("\n")
+        self.stderr = stderr.split("\n")
+
+        return self
 
 
 # misc utils --------------------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import sys
 import types
 from collections.abc import Callable
 
-from vulpix.utils import logging, run_cmd
+from vulpix.utils import LoggedCommand, logging
 
 # package interface -------------------------------------------------------------------------------
 
@@ -39,5 +39,5 @@ def run_external_script(script: str, *args: str, logger: logging.Logger) -> list
     if script.endswith(".ps1"):
         cmd.insert(0, "powershell")
 
-    stdout = run_cmd(*cmd, logger=logger, return_stdout=True)
-    return stdout or []
+    cmd = LoggedCommand(*cmd, logger=logger).run(log_stdout=False)
+    return cmd.stdout or []
