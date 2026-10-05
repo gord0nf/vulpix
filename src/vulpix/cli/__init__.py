@@ -215,6 +215,7 @@ class Cli(argparse.Namespace):
         parser = argparse.ArgumentParser(
             prog="vulpix",
             description=f"blueprint-driven system management/configuration tool [ {cool_dude} ]",
+            usage="%(prog)s [OPTIONS] <COMMAND>",
         )
         parser.add_argument(
             "-v",
