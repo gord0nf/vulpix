@@ -1,10 +1,17 @@
 import inspect
+import json
 import os
 import shutil
 import stat
 import subprocess
 import threading
+from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
+from typing import Any, ClassVar, Protocol, TextIO
+
+import dacite
+from filelock import FileLock, Timeout
 
 from vulpix.core import VulpixError, logging, system
 
@@ -174,6 +181,82 @@ class Broadcast:
 
     def wait(self):
         return self._event.wait()
+
+
+class Dataclass(Protocol):
+    """credit: https://stackoverflow.com/a/55240861"""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+class DataclassFile[D: Dataclass]:
+    """
+    context manager that locks a file, reads and validates it into the target
+    dataclass, then writes and released file on exit.
+
+    IMPORTANT: the dataclass must have defaults/option fields if the file doesn't
+    exist
+    """
+
+    type LoadFunction = Callable[[TextIO], dict]
+    type DumpFunction = Callable[[dict, TextIO], None]
+    type HandleException = Callable[[type[Exception], Exception], bool | None]
+
+    path: Path
+    lock: FileLock
+    dclass_def: type[D]
+    dclass_instance: D
+
+    acquire_timeout: int = 10
+    load_func: LoadFunction = staticmethod(json.load)
+    dump_func: DumpFunction = staticmethod(json.dump)
+    on_error: HandleException | None
+
+    def __init__(
+        self, path: Path, dclass: type[D], on_error: HandleException | None = None
+    ):
+        self.path = path
+        self.lock = FileLock(path.with_suffix(".lock"))
+        self.dclass_def = dclass
+        self.on_error = on_error
+
+    def __enter__(self) -> D:
+        try:
+            self.lock.acquire(timeout=self.acquire_timeout)
+        except Timeout:
+            raise VulpixError(f"couldn't aquire lock for {self.path}")
+
+        try:
+            if self.path.exists() and self.path.stat().st_size > 0:
+                with open(self.path, "r") as file:
+                    d = self.load_func(file)
+                self.dclass_instance = dacite.from_dict(self.dclass_def, data=d)
+            else:
+                self.dclass_instance = self.dclass_def()
+        except Exception as e:
+            if not self.on_error or not self.on_error(type(e), e):
+                raise
+
+        return self.dclass_instance
+
+    def __exit__(self, exc_type, *_):
+        if exc_type is not None:
+            self.lock.release()
+            return False
+
+        try:
+            d = asdict(self.dclass_instance)
+            with open(self.path, "w") as file:
+                self.dump_func(d, file)
+        except Exception as e:
+            if not self.on_error or not self.on_error(type(e), e):
+                raise
+
+        self.lock.release()
+
+    def check(self):
+        with self:
+            pass
 
 
 def accepts_kwarg(func_sig: inspect.Signature, kwarg_name: str):

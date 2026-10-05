@@ -10,9 +10,14 @@ from typing import Literal
 from vulpix import __version__, config_managers, package_managers
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
-from vulpix.core import VulpixError, dirs, system
+from vulpix.core import VulpixError, dirs, dotenv, system
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
+
+
+def main_cli_init():
+    logging.clear_logs()
+    dotenv.datafile.check()
 
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -330,7 +335,7 @@ class Cli(argparse.Namespace):
             TaskSection.alt_screen = False
 
     def sync_command(self, blueprint_path: Path):
-        logging.clear_logs()
+        main_cli_init()
         blueprint = parse_blueprint(blueprint_path, self.logger)
 
         # no opts = --clean --apply --config
@@ -355,10 +360,9 @@ class Cli(argparse.Namespace):
             package_config_section(blueprint, package_filter, self.logger)
 
     def dotfiles_command(self, blueprint_path: Path):
-        logging.clear_logs()
+        main_cli_init()
 
     def blueprint_command(self, blueprint: Path):
-        logging.clear_logs()
         if self.edit:
             blueprint.parent.mkdir(parents=True, exist_ok=True)
             default_editor = "notepad" if system.OS == "windows" else "nano"

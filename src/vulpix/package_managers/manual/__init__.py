@@ -45,7 +45,7 @@ import dacite
 import yaml
 from filelock import FileLock, Timeout
 
-from vulpix.core import dirs, logging
+from vulpix.core import dirs, dotenv, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
 from vulpix.utils import AtomicChange, VulpixError, link, rm_fr, rm_link
@@ -185,11 +185,11 @@ class Status:
 
         return bin, bin_dir / link_name
 
-    def activate_package_binaries(self, package: str):
-        self.logger.info(f"activating '{package}' binaries")
-        binaries = self.by_package[package].binaries
+    def _link_binaries(self, rel_binaries: list[str], package: str) -> list[Path]:
+        """returns all dirs to be added to PATH"""
+        bin_dirs: list[Path] = [BIN_DIR]
         with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
-            for relative_bin in binaries:
+            for relative_bin in rel_binaries:
                 bin_target, bin_link = self._get_bin_link_paths(
                     package, Path(relative_bin), bin_dir
                 )
@@ -197,13 +197,16 @@ class Status:
                 if bin_link.exists():
                     rm_link(bin_link)
                 link(bin_target, bin_link, self.logger)
+                if bin_target.is_dir():
+                    bin_dirs.append(BIN_DIR / bin_link.relative_to(bin_dir))
+        return bin_dirs
 
-    def deactivate_package_binaries(self, package: str):
-        self.logger.info(f"deactivating '{package}' binaries")
-        binaries = self.by_package[package].binaries
+    def _unlink_binaries(self, rel_binaries: list[str], package: str) -> list[Path]:
+        """returns all dirs to be removed to PATH"""
+        bin_dirs: list[Path] = [BIN_DIR]
         with AtomicChange(BIN_DIR, preserve_junctions=True) as bin_dir:
-            for relative_bin in binaries:
-                _, bin_link = self._get_bin_link_paths(
+            for relative_bin in rel_binaries:
+                bin_target, bin_link = self._get_bin_link_paths(
                     package, Path(relative_bin), bin_dir
                 )
                 if not bin_link.exists():
@@ -212,6 +215,43 @@ class Status:
 
                 self.logger.debug(f"unlinking: {bin_link}")
                 rm_link(bin_link)
+                if bin_target.is_dir():
+                    bin_dirs.append(BIN_DIR / bin_link.relative_to(bin_dir))
+        return bin_dirs
+
+    def activate_package_binaries(self, package: str):
+        """symlink binaries (if necessary) and add path(s) to dotenv PATH"""
+        self.logger.info(f"activating '{package}' binaries")
+        binaries = self.by_package[package].binaries
+        if system.SUPPORTS_SYMLINKS:
+            bin_dirs = self._link_binaries(binaries, package)
+        else:
+            install_dir = get_package_install_dir(package).resolve()
+            binaries = [(install_dir / b).resolve() for b in binaries]
+            bin_dirs = [b if b.is_dir() else b.parent for b in binaries]
+
+        self.logger.debug(f"adding to path: {bin_dirs}")
+        bin_dirs = [str(b) for b in bin_dirs]
+        with dotenv.datafile as env:
+            for b in bin_dirs:
+                if not b in env.PATH:
+                    env.PATH.append(b)
+
+    def deactivate_package_binaries(self, package: str):
+        """remove symlink binaries (if necessary) and remove path(s) in dotenv PATH"""
+        self.logger.info(f"deactivating '{package}' binaries")
+        binaries = self.by_package[package].binaries
+        if system.SUPPORTS_SYMLINKS:
+            bin_dirs = self._unlink_binaries(binaries, package)
+        else:
+            install_dir = get_package_install_dir(package).resolve()
+            binaries = [(install_dir / b).resolve() for b in binaries]
+            bin_dirs = [b if b.is_dir() else b.parent for b in binaries]
+
+        self.logger.debug(f"removing from path: {bin_dirs}")
+        bin_dirs = [str(b) for b in bin_dirs]
+        with dotenv.datafile as env:
+            env.PATH = [p for p in env.PATH if p not in bin_dirs]
 
 
 # main operations ---------------------------------------------------------------------------------
