@@ -36,26 +36,24 @@ directories containing binaries, seperated by newlines. (these become part of th
 """
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
+from json import JSONDecodeError
 from pathlib import Path
 from typing import cast
 
-import dacite
-import yaml
-from filelock import FileLock, Timeout
+from dacite import DaciteError
 
 from vulpix.core import dirs, dotenv, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
-from vulpix.utils import AtomicChange, VulpixError, link, rm_fr, rm_link
+from vulpix.utils import AtomicChange, DataclassFile, VulpixError, link, rm_fr, rm_link
 
 from . import packages as library
 
 ROOT_DIR = dirs.DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
-STATUS_YAML = ROOT_DIR / "status.yaml"
-STATUS_LOCK = FileLock(STATUS_YAML.with_suffix(".lock"))
+STATUS_PATH = ROOT_DIR / "status.json"
 STATUS_TIMEOUT = 10
 N_GRACE_DAYS = 30  # number of days before deactivated packages are actually destroyed
 
@@ -88,55 +86,19 @@ def run_package_script(package: str, logger: logging.Logger) -> list[str]:
 # status.yaml operations --------------------------------------------------------------------------
 
 
+@dataclass
+class PackageStatus:
+    active: bool
+    last_active: date
+    binaries: list[str]
+
+
+@dataclass
 class Status:
-    @dataclass
-    class PackageStatus:
-        active: bool
-        last_active: date
-        binaries: list[str]
-
-    logger: logging.Logger
-    by_package: dict[str, PackageStatus]
-
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
-
-    def __enter__(self):
-        self.logger.debug(f"loading: {STATUS_YAML}")
-        try:
-            STATUS_LOCK.acquire(timeout=STATUS_TIMEOUT)
-        except Timeout:
-            raise VulpixError(f"manual couldn't aquire lock {STATUS_LOCK}")
-
-        with open(STATUS_YAML, "r") as file:
-            status = yaml.safe_load(file)
-        if status is None:
-            status = {}
-        if not isinstance(status, dict):
-            raise VulpixError(f"invalid status.yaml at '{STATUS_YAML}': not a dict")
-        try:
-            self.by_package = {
-                k: dacite.from_dict(data_class=self.PackageStatus, data=v)
-                for k, v in status.items()
-            }
-        except dacite.DaciteError as e:
-            self.logger.error(str(e))
-            raise VulpixError(f"invalid status.yaml at '{STATUS_YAML}'")
-        return self
-
-    def __exit__(self, exc_type, *_):
-        if exc_type is not None:
-            return False
-
-        self.logger.debug(f"writing: {STATUS_YAML}")
-        with open(STATUS_YAML, "r+") as file:
-            file.seek(0)
-            file.truncate(0)
-            yaml.dump({k: asdict(v) for k, v in self.by_package.items()}, file)
-
-        STATUS_LOCK.release()
-
-    # helper methods ------------------------------------------------------------------------------
+    by_package: dict[str, PackageStatus] = field(default_factory=dict)
+    _logger: logging.Logger = field(
+        init=False, repr=False, default=logging.getLogger("main")
+    )
 
     def is_installed(self, package: str) -> bool:
         return package in self.by_package
@@ -145,19 +107,19 @@ class Status:
         return package in self.by_package and self.by_package[package].active
 
     def destroy_package_entry(self, package: str):
-        self.logger.info(f"destroying package entry '{package}'")
+        self._logger.info(f"destroying package entry '{package}'")
         del self.by_package[package]
 
     def activate_package_entry(self, package: str, bin_paths: list[str]):
-        self.logger.info(f"activating package entry '{package}'")
-        self.by_package[package] = self.PackageStatus(
+        self._logger.info(f"activating package entry '{package}'")
+        self.by_package[package] = PackageStatus(
             active=True,
             last_active=date.today(),  # noqa: DTZ011
             binaries=bin_paths,
         )
 
     def deactivate_package_entry(self, package: str):
-        self.logger.info(f"deactivating package entry '{package}'")
+        self._logger.info(f"deactivating package entry '{package}'")
         self.by_package[package].active = False
 
     def _get_bin_link_paths(
@@ -193,10 +155,10 @@ class Status:
                 bin_target, bin_link = self._get_bin_link_paths(
                     package, Path(relative_bin), bin_dir
                 )
-                self.logger.debug(f"bin link: '{bin_link}' -> '{bin_target}'")
+                self._logger.debug(f"bin link: '{bin_link}' -> '{bin_target}'")
                 if bin_link.exists():
                     rm_link(bin_link)
-                link(bin_target, bin_link, self.logger)
+                link(bin_target, bin_link, self._logger)
                 if bin_target.is_dir():
                     bin_dirs.append(BIN_DIR / bin_link.relative_to(bin_dir))
         return bin_dirs
@@ -210,10 +172,12 @@ class Status:
                     package, Path(relative_bin), bin_dir
                 )
                 if not bin_link.exists():
-                    self.logger.warning(f"expected binary to be linked at '{bin_link}'")
+                    self._logger.warning(
+                        f"expected binary to be linked at '{bin_link}'"
+                    )
                     continue
 
-                self.logger.debug(f"unlinking: {bin_link}")
+                self._logger.debug(f"unlinking: {bin_link}")
                 rm_link(bin_link)
                 if bin_target.is_dir():
                     bin_dirs.append(BIN_DIR / bin_link.relative_to(bin_dir))
@@ -221,7 +185,7 @@ class Status:
 
     def activate_package_binaries(self, package: str):
         """symlink binaries (if necessary) and add path(s) to dotenv PATH"""
-        self.logger.info(f"activating '{package}' binaries")
+        self._logger.info(f"activating '{package}' binaries")
         binaries = self.by_package[package].binaries
         if system.SUPPORTS_SYMLINKS:
             bin_dirs = self._link_binaries(binaries, package)
@@ -230,7 +194,7 @@ class Status:
             binaries = [(install_dir / b).resolve() for b in binaries]
             bin_dirs = [b if b.is_dir() else b.parent for b in binaries]
 
-        self.logger.debug(f"adding to path: {bin_dirs}")
+        self._logger.debug(f"adding to path: {bin_dirs}")
         bin_dirs = [str(b) for b in bin_dirs]
         with dotenv.datafile as env:
             for b in bin_dirs:
@@ -239,7 +203,7 @@ class Status:
 
     def deactivate_package_binaries(self, package: str):
         """remove symlink binaries (if necessary) and remove path(s) in dotenv PATH"""
-        self.logger.info(f"deactivating '{package}' binaries")
+        self._logger.info(f"deactivating '{package}' binaries")
         binaries = self.by_package[package].binaries
         if system.SUPPORTS_SYMLINKS:
             bin_dirs = self._unlink_binaries(binaries, package)
@@ -248,17 +212,29 @@ class Status:
             binaries = [(install_dir / b).resolve() for b in binaries]
             bin_dirs = [b if b.is_dir() else b.parent for b in binaries]
 
-        self.logger.debug(f"removing from path: {bin_dirs}")
+        self._logger.debug(f"removing from path: {bin_dirs}")
         bin_dirs = [str(b) for b in bin_dirs]
         with dotenv.datafile as env:
             env.PATH = [p for p in env.PATH if p not in bin_dirs]
+
+
+def handle_status_error(exc_type: type[Exception], exc_value: Exception) -> bool:
+    if issubclass(exc_type, (JSONDecodeError, DaciteError)):
+        logging.getLogger("main").error(str(exc_value))
+        raise VulpixError(f"invalid status.yaml (for manual) at '{STATUS_PATH}'")
+    return False
+
+
+status_datafile = DataclassFile(
+    STATUS_PATH, dclass=Status, on_error=handle_status_error
+)
 
 
 # main operations ---------------------------------------------------------------------------------
 
 
 def destory_package(package: str, status: Status):
-    status.logger.info(f"destroying package '{package}'")
+    status._logger.info(f"destroying package '{package}'")
     rm_fr(get_package_install_dir(package))
     status.destroy_package_entry(package)
 
@@ -267,15 +243,15 @@ def destory_package(package: str, status: Status):
 def install_package(package: str, logger: logging.Logger):
     """if package not installed, will run install script, then enable the package"""
     logger.info(f"installing package '{package}'")
-    status = Status(logger)
-    with status:
+    with status_datafile as status:
+        status._logger = logger
         if status.is_installed(package):
             logger.info(f"package already installed '{package}'")
 
     # important: do not lock status while running package script
     package_binaries = run_package_script(package, logger)
 
-    with status:
+    with status_datafile as status:
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
@@ -284,7 +260,8 @@ def install_package(package: str, logger: logging.Logger):
 def uninstall_package(package: str, logger: logging.Logger):
     """will disable the installation"""
     logger.info(f"uninstalling package '{package}'")
-    with Status(logger) as status:
+    with status_datafile as status:
+        status._logger = logger
         if status.is_active(package):
             status.deactivate_package_binaries(package)
             status.deactivate_package_entry(package)
@@ -296,8 +273,8 @@ def uninstall_package(package: str, logger: logging.Logger):
 def update_package(package: str, logger: logging.Logger):
     """if package installed, will run install script, then enable the package"""
     logger.info(f"updating package '{package}'")
-    status = Status(logger)
-    with status:
+    with status_datafile as status:
+        status._logger = logger
         if not status.is_installed(package):
             raise VulpixError(f"package '{package}' is not installed, so can't update")
 
@@ -305,7 +282,8 @@ def update_package(package: str, logger: logging.Logger):
     # calling on an already installed package should update it
     package_binaries = run_package_script(package, logger)
 
-    with status:
+    with status_datafile as status:
+        status._logger = logger
         status.activate_package_entry(package, package_binaries)
         status.activate_package_binaries(package)
 
@@ -314,7 +292,8 @@ def update_package(package: str, logger: logging.Logger):
 def reinstall_package(package: str, logger: logging.Logger, queue: ThreadedTaskQueue):
     """will destroy the installation, then run install script, then enable the package"""
     logger.info(f"reinstalling package '{package}'")
-    with Status(logger) as status:
+    with status_datafile as status:
+        status._logger = logger
         destory_package(package, status)
 
     logger.info("spawning install task")
@@ -328,7 +307,8 @@ def garbage_collection(logger: logging.Logger):
     logger.info("checking for garbage packages")
 
     cutoff_date = date.today() - timedelta(days=N_GRACE_DAYS)  # noqa: DTZ011
-    with Status(logger) as status:
+    with status_datafile as status:
+        status._logger = logger
         garbage_packages = [
             p for p, s in status.by_package.items() if s.last_active < cutoff_date
         ]
@@ -338,15 +318,12 @@ def garbage_collection(logger: logging.Logger):
 
 
 class ManualManager(PackageManager):
-    main_logger: logging.Logger
-
     def __init__(self):
-        # verify stuff exists
+        # verify stuff exists and is valid
         ROOT_DIR.mkdir(parents=True, exist_ok=True)
         BIN_DIR.mkdir(parents=True, exist_ok=True)
-        STATUS_YAML.touch()
-
-        self.main_logger = logging.getLogger("main")
+        STATUS_PATH.touch()
+        status_datafile.check()
 
     def check_packages(self, packages: list[str]) -> None:
         for package in packages:
@@ -358,7 +335,7 @@ class ManualManager(PackageManager):
     ) -> PackageManager.PackageDiff:
         diff = self.PackageDiff()
 
-        with Status(self.main_logger) as status:
+        with status_datafile as status:
             for package, pstatus in status.by_package.items():
                 if package in blueprint_packages:
                     diff.to_update.append(package)

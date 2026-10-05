@@ -11,8 +11,7 @@ import yaml
 from vulpix.cli import logging
 from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
-
-dacite_config = dacite.Config(strict=True)
+from vulpix.utils import dacite_config
 
 
 # https://stackoverflow.com/a/20666342

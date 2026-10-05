@@ -7,6 +7,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from dataclasses import asdict
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, ClassVar, Protocol, TextIO
 
@@ -166,6 +167,11 @@ def run_cmd(
 # misc utils --------------------------------------------------------------------------------------
 
 
+dacite_config = dacite.Config(
+    strict=True, type_hooks={datetime: datetime.fromisoformat, date: date.fromisoformat}
+)
+
+
 class Broadcast:
     _event: threading.Event
     _lock: threading.Lock
@@ -189,6 +195,10 @@ class Dataclass(Protocol):
     __dataclass_fields__: ClassVar[dict[str, Any]]
 
 
+def _asdict_no_underscores(data: list[tuple[str, Any]]) -> dict[str, Any]:
+    return {k: v for k, v in data if not k.startswith("_")}
+
+
 class DataclassFile[D: Dataclass]:
     """
     context manager that locks a file, reads and validates it into the target
@@ -209,7 +219,7 @@ class DataclassFile[D: Dataclass]:
 
     acquire_timeout: int = 10
     load_func: LoadFunction = staticmethod(json.load)
-    dump_func: DumpFunction = staticmethod(json.dump)
+    dump_func: DumpFunction = staticmethod(lambda d, f: json.dump(d, f, default=str))
     on_error: HandleException | None
 
     def __init__(
@@ -230,11 +240,13 @@ class DataclassFile[D: Dataclass]:
             if self.path.exists() and self.path.stat().st_size > 0:
                 with open(self.path, "r") as file:
                     d = self.load_func(file)
-                self.dclass_instance = dacite.from_dict(self.dclass_def, data=d)
+                self.dclass_instance = dacite.from_dict(
+                    data_class=self.dclass_def, data=d, config=dacite_config
+                )
             else:
                 self.dclass_instance = self.dclass_def()
         except Exception as e:
-            if not self.on_error or not self.on_error(type(e), e):
+            if not self.on_error or self.on_error(type(e), e) is False:
                 raise
 
         return self.dclass_instance
@@ -245,11 +257,11 @@ class DataclassFile[D: Dataclass]:
             return False
 
         try:
-            d = asdict(self.dclass_instance)
+            d = asdict(self.dclass_instance, dict_factory=_asdict_no_underscores)
             with open(self.path, "w") as file:
                 self.dump_func(d, file)
         except Exception as e:
-            if not self.on_error or not self.on_error(type(e), e):
+            if not self.on_error or self.on_error(type(e), e) is False:
                 raise
 
         self.lock.release()
