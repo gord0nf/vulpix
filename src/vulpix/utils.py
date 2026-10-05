@@ -219,7 +219,9 @@ class DataclassFile[D: Dataclass]:
 
     acquire_timeout: int = 10
     load_func: LoadFunction = staticmethod(json.load)
-    dump_func: DumpFunction = staticmethod(lambda d, f: json.dump(d, f, default=str))
+    dump_func: DumpFunction = staticmethod(
+        lambda d, f: json.dump(d, f, default=str, indent=4)
+    )
     on_error: HandleException | None
 
     def __init__(

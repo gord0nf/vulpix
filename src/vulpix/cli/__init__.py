@@ -14,10 +14,21 @@ from vulpix.core import VulpixError, dirs, dotenv, system
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
+default_editor = "notepad" if system.OS == "windows" else "nano"
+
 
 def main_cli_init():
     logging.clear_logs()
     dotenv.datafile.check()
+
+
+def open_in_editor(path: Path, logger: logging.Logger):
+    editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"opening '{editor} {path}'")
+    os.chdir(path.parent)
+    subprocess.call([editor, str(path)])
 
 
 def regex_arg(arg: str) -> re.Pattern[str]:
@@ -197,7 +208,7 @@ class Cli(argparse.Namespace):
     log: re.Pattern[str] | None = None
 
     # dotenv command
-    shell: Literal["sh", "pwsh"]
+    shell: Literal["sh", "pwsh"] | None
 
     def __init__(self):
         cool_dude = term.orchid("b(￣▽￣)d")
@@ -312,9 +323,11 @@ class Cli(argparse.Namespace):
             "dotenv",
             help=dotenv_desc,
             description='use like `eval "$(vulpix dotenv sh)"` or '
-            "`vulpix dotenv pwsh | Invoke-Expression` in your profile.",
+            "`vulpix dotenv pwsh | Invoke-Expression` in your profile.\n\n"
+            "do not specify <shell> to open dotenv json in $VISUAL/$EDITOR.",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
         )
-        dotenv_parser.add_argument("shell", choices=["sh", "pwsh"])
+        dotenv_parser.add_argument("shell", choices=["sh", "pwsh"], nargs="?")
 
         # replay command
         replay_desc = "replay a log file."
@@ -377,18 +390,17 @@ class Cli(argparse.Namespace):
 
     def blueprint_command(self, blueprint: Path):
         if self.edit:
-            blueprint.parent.mkdir(parents=True, exist_ok=True)
-            default_editor = "notepad" if system.OS == "windows" else "nano"
-            editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
-
-            self.logger.info(f"opening '{editor} {blueprint}'")
-            os.chdir(blueprint.parent)
-            subprocess.call([editor, str(blueprint)])
+            open_in_editor(blueprint, self.logger)
             return
 
         self.logger.warning("nothing to do")
 
     def dotenv_command(self):
+        if self.shell is None:
+            dotenv.datafile.check()
+            open_in_editor(dotenv.path, self.logger)
+            return
+
         self.logger.debug(f"converting '{dotenv.path}'")
         with dotenv.datafile as env:
             match self.shell:
@@ -396,6 +408,8 @@ class Cli(argparse.Namespace):
                     source = env.as_sh()
                 case "pwsh":
                     source = env.as_pwsh()
+                case _:
+                    raise ValueError("invalid shell option")
         print(source)
 
     def replay_command(self):
