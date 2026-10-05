@@ -37,6 +37,15 @@ EnablePseudoConsoleSupport=Disabled
 EnableFSMonitor=Disabled
 "@
 
+function Test-Url([string]$Url) {
+    try {
+        $response = Invoke-WebRequest -Uri $Url -Method Head -UseBasicParsing -ErrorAction Stop
+        return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400)
+    } catch {
+        return $false
+    }
+}
+
 function Get-VersionTag() {
   [Console]::Error.WriteLine('INFO: getting version from github')
   $releaseInfo = `
@@ -63,17 +72,23 @@ function Get-InstalledVersion() {
 }
 
 function Get-DownloadUrl($Version) {
+  $arch = (Get-CimInstance Win32_OperatingSystem).OSArchitecture
   if ($Version -match "^v(\d+\.\d+\.\d+)\.windows(\.\d+)?$") {
-    $versionNumber = $Matches[1]
+    $possibleVersionNumbers = @($Matches[1])
     if ($Matches.Count -gt 2) {
-      $versionNumber = "$versionNumber$($Matches[2])"
+      $possibleVersionNumbers += @("$($Matches[1])$($Matches[2])")
     }
-    $arch = (Get-CimInstance Win32_OperatingSystem).OSArchitecture
-    return "https://github.com/git-for-windows/git/releases/download/$Version/Git-$versionNumber-$arch.exe"
+    foreach ($versionNumber in $possibleVersionNumbers) {
+      $url = "https://github.com/git-for-windows/git/releases/download/$Version/Git-$versionNumber-$arch.exe"
+      if (Test-Url $url) {
+        return $url
+      }
+    }
+    [Console]::Error.WriteLine("FATAL: couldn't find url that accepts version number")
   } else {
     [Console]::Error.WriteLine("FATAL: couldn't parse version number from tag")
-    exit 1
   }
+  exit 1
 }
 
 $Update = Test-Path -Path $InstallDir -PathType Container
