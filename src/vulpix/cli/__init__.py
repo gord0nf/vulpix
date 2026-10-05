@@ -179,7 +179,7 @@ class Cli(argparse.Namespace):
     verbose: bool = False
     blueprint: str | None = None
     whatif: bool = False
-    command: Literal["sync", "dotfiles", "blueprint"] | None = None
+    command: Literal["sync", "dotfiles", "blueprint", "replay", "dotenv"] | None = None
 
     # sync command
     apply: re.Pattern[str] | None = None
@@ -195,6 +195,9 @@ class Cli(argparse.Namespace):
 
     # replay command
     log: re.Pattern[str] | None = None
+
+    # dotenv command
+    shell: Literal["sh", "pwsh"]
 
     def __init__(self):
         cool_dude = term.orchid("b(￣▽￣)d")
@@ -303,6 +306,16 @@ class Cli(argparse.Namespace):
             "-e", "--edit", action="store_true", help="open in $VISUAL/$EDITOR."
         )
 
+        # dotenv command
+        dotenv_desc = "source vulpix dotenv in your shell."
+        dotenv_parser = subparsers.add_parser(
+            "dotenv",
+            help=dotenv_desc,
+            description='use like `eval "$(vulpix dotenv sh)"` or '
+            "`vulpix dotenv pwsh | Invoke-Expression` in your profile.",
+        )
+        dotenv_parser.add_argument("shell", choices=["sh", "pwsh"])
+
         # replay command
         replay_desc = "replay a log file."
         replay_parser = subparsers.add_parser(
@@ -375,6 +388,16 @@ class Cli(argparse.Namespace):
 
         self.logger.warning("nothing to do")
 
+    def dotenv_command(self):
+        self.logger.debug(f"converting '{dotenv.path}'")
+        with dotenv.datafile as env:
+            match self.shell:
+                case "sh":
+                    source = env.as_sh()
+                case "pwsh":
+                    source = env.as_pwsh()
+        print(source)
+
     def replay_command(self):
         self.logger.info("replay")
 
@@ -396,6 +419,8 @@ class Cli(argparse.Namespace):
                 self.dotfiles_command(blueprint_path)
             case "blueprint":
                 self.blueprint_command(blueprint_path)
+            case "dotenv":
+                self.dotenv_command()
             case "replay":
                 self.replay_command()
             case _:

@@ -17,8 +17,10 @@ from json import JSONDecodeError
 
 from dacite import DaciteError
 
-from vulpix.core import VulpixError, dirs, logging
+from vulpix.core import VulpixError, dirs, logging, system
 from vulpix.utils import DataclassFile
+
+_default_pwsh_list_sep = ";" if system.OS == "windows" else ":"
 
 
 @dataclass
@@ -39,6 +41,38 @@ class Dotenv:
     @PATH.setter
     def PATH(self, new: list[str]):
         self.append_env["PATH"] = new
+
+    # script language conversion ------------------------------------------------------------------
+
+    def as_sh(self, list_sep: str = ":") -> str:
+        env = [
+            f'export {name}="{list_sep.join(val)}"'
+            if isinstance(val, list)
+            else f'export {name}="{val}"'
+            for name, val in self.env.items()
+        ]
+        append_env = [
+            f'export {name}="${name}{list_sep}{list_sep.join(val)}"'
+            if isinstance(val, list)
+            else f'export {name}="{val}"'
+            for name, val in self.append_env.items()
+        ]
+        return "\n".join([*env, *append_env])
+
+    def as_pwsh(self, list_sep: str = _default_pwsh_list_sep) -> str:
+        env = [
+            f'$env:{name} = "{list_sep.join(val)}"'
+            if isinstance(val, list)
+            else f'$env:{name} = "{val}"'
+            for name, val in self.env.items()
+        ]
+        append_env = [
+            f'$env:{name} += "{list_sep}{list_sep.join(val)}"'
+            if isinstance(val, list)
+            else f'$env:{name} += "{val}"'
+            for name, val in self.append_env.items()
+        ]
+        return "\n".join([*env, *append_env])
 
 
 path = dirs.CONFIG / ".env.json"
