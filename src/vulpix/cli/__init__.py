@@ -66,7 +66,7 @@ def build_package_filter(
 
         # then clean and apply filters
         if clean is None:
-            changes.to_install = []
+            changes.to_uninstall = []
         else:
             changes.to_uninstall = filter_packages(changes.to_uninstall, clean)
         if apply is None:
