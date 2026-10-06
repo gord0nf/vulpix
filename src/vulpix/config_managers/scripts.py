@@ -55,7 +55,7 @@ from vulpix.core import VulpixError, dirs, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.utils import LoggedCommand, accepts_kwarg, is_executable, path_as_salt
 
-SCRIPTS_DIR = dirs.CONFIG / "config"
+SCRIPTS_DIR = dirs.VULPIX_CONFIG / "config"
 
 
 class Script:

@@ -419,7 +419,7 @@ class Cli(argparse.Namespace):
     def main(self):
         self.logger.debug(str(self))
 
-        blueprint_path = dirs.CONFIG / "blueprint.yaml"
+        blueprint_path = dirs.VULPIX_CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
             blueprint_path = Path(self.blueprint)
 

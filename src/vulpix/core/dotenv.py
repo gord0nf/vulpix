@@ -75,7 +75,7 @@ class Dotenv:
         return "\n".join([*env, *append_env])
 
 
-path = dirs.CONFIG / ".env.json"
+path = dirs.VULPIX_CONFIG / ".env.json"
 
 
 def handle_error(exc_type: type[Exception], exc_value: Exception) -> bool:

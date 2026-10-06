@@ -1,62 +1,57 @@
 """defines constants for application directories"""
 
 import os
-from os.path import expandvars
 from pathlib import Path
 from typing import Final
 
 from vulpix.core import system
 
 
-def default_data():
+def data(app: str) -> Path:
     if system.IS_ROOT:
         if system.OS == "windows":
-            return expandvars("$ProgramData/vulpix")
+            return Path(os.environ["ProgramData"]) / app
         else:
-            return "/var/lib/vulpix"
+            return Path("/var/lib/") / app
     else:
         if system.OS == "windows":
-            return expandvars("$LOCALAPPDATA/vulpix")
+            return Path(os.environ["LOCALAPPDATA"]) / app
         else:
-            return expandvars("$HOME/.local/state/vulpix")
+            return Path.home() / ".local/state" / app
 
 
-def default_log():
+def log(app: str) -> Path:
     if system.IS_ROOT:
         if system.OS == "windows":
-            return expandvars("$ProgramData/vulpix/log")
+            return Path(os.environ["ProgramData"]) / app / "log"
         else:
-            return "/var/log/vulpix"
+            return Path("/var/log") / app
     else:
         if system.OS == "windows":
-            return expandvars("$LOCALAPPDATA/vulpix/log")
+            return Path(os.environ["LOCALAPPDATA"]) / app / "log"
         else:
-            return expandvars("$HOME/.local/state/vulpix/log")
+            return Path.home() / ".local/state" / app / "log"
 
 
-def default_config():
+def config(app: str) -> Path:
     if system.IS_ROOT:
         if system.OS == "windows":
-            return expandvars("$ProgramData/vulpix/config")
+            return Path(os.environ["ProgramData"]) / app / "config"
         else:
-            return "/etc/vulpix"
+            return Path("/etc") / app
     else:
         if system.OS == "windows":
-            return expandvars("$APPDATA/vulpix")
+            return Path(os.environ["APPDATA"]) / app
         else:
-            return expandvars("$HOME/.config/vulpix")
+            return Path.home() / ".config" / app
 
 
-def default_tmp():
-    if "TMP" in os.environ:
-        return expandvars("$TMP/vulpix")
-    elif "TEMP" in os.environ:
-        return expandvars("$TEMP/vulpix")
-    else:
-        return "/tmp/vulpix"
+def tmp(app: str) -> Path:
+    tmp = os.getenv("TMP") or os.getenv("TEMP") or "/tmp"
+    return Path(tmp) / app
 
 
-DATA: Final[Path] = Path(os.getenv("VULPIX_DATA") or default_data())
-LOG: Final[Path] = Path(os.getenv("VULPIX_LOG") or default_log())
-CONFIG: Final[Path] = Path(os.getenv("VULPIX_CONFIG") or default_config())
-TMP: Final[Path] = Path(os.getenv("VULPIX_TMP") or default_tmp())
+VULPIX_DATA: Final[Path] = Path(os.getenv("VULPIX_DATA") or data("vulpix"))
+VULPIX_LOG: Final[Path] = Path(os.getenv("VULPIX_LOG") or log("vulpix"))
+VULPIX_CONFIG: Final[Path] = Path(os.getenv("VULPIX_CONFIG") or config("vulpix"))
+VULPIX_TMP: Final[Path] = Path(os.getenv("VULPIX_TMP") or tmp("vulpix"))

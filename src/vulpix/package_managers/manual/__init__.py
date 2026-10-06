@@ -59,7 +59,7 @@ from vulpix.utils import (
 
 from . import packages as library
 
-ROOT_DIR = dirs.DATA / "manual"
+ROOT_DIR = dirs.VULPIX_DATA / "manual"
 BIN_DIR = ROOT_DIR / "bin"
 STATUS_PATH = ROOT_DIR / "status.json"
 STATUS_TIMEOUT = 10

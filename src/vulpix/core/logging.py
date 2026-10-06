@@ -13,7 +13,7 @@ FILE_FORMATTER = Formatter("%(asctime)s %(threadName)s [%(levelname)s]: %(messag
 
 
 def attach_log_file(logger: Logger) -> None:
-    log_path = dirs.LOG.joinpath(logger.name + ".log")
+    log_path = dirs.VULPIX_LOG.joinpath(logger.name + ".log")
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     file_handler = FileHandler(log_path, encoding="utf-16")
