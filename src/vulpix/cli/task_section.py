@@ -101,7 +101,7 @@ class TaskSection(ThreadedTaskQueue):
             self._update_footer()
 
     def __enter__(self):
-        self.logger.info(term.orchid(self.emote) + " " + term.blue(self.name.upper()))
+        self.logger.info(term.blue(f"{self.emote} {self.name.upper()}"))
 
         # init task section screen
         if self.alt_screen:

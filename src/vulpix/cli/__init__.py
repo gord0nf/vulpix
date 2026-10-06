@@ -16,6 +16,13 @@ from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
 default_editor = "notepad" if system.OS == "windows" else "nano"
 
+emotes = {
+    "cool_dude": term.orchid("b(￣▽￣)d"),
+    "section": term.orchid("(*￣０￣)ノ"),
+    "success": term.green(" ✿ ◠‿◠ "),
+    "failure": term.red("＞︿＜"),
+}
+
 
 def main_cli_init():
     logging.clear_logs()
@@ -110,75 +117,8 @@ def print_section_summary(tasks: dict[ManagerTask, bool], logger: logging.Logger
             "some package tasks failed (`vulpix replay <task>` to check logs)"
         )
 
-    em = term.red("＞︿＜") if tasks_failed else term.green(" ✿ ◠‿◠ ")
+    em = emotes["failure"] if tasks_failed else emotes["success"]
     print(f"[{em}] summary:\n" + task_summary(tasks))
-
-
-emote = "(*￣０￣)ノ"
-
-
-def package_manage_section(
-    blueprint: Blueprint, package_filter: Callable, logger: logging.Logger
-):
-    if len(blueprint.packages) == 0:
-        logger.warning("no package managers in blueprint, skipping package management")
-        return
-
-    with TaskSection("package management", blueprint, logger, emote) as section:
-        for manager_id, packages in blueprint.packages.items():
-            manager = package_managers.get_manager(manager_id)
-            diff = manager.get_package_diff(packages)
-            logger.debug(f"packagemanager {manager_id}: {diff}")
-
-            package_filter(manager_id, diff)
-            logger.debug(f"filtered diff: {diff}")
-            if not any(len(v) > 0 for v in astuple(diff)):
-                logger.warning(
-                    f"no regex matches, skipping '{manager_id}' package management"
-                )
-                continue
-
-            task = ManagerTask("package_manager", manager_id)
-            task.run(section, manager.apply_changes, args=(diff,))
-
-    # section summary
-    package_tasks = completed_package_tasks(section.completed_tasks)
-    if len(package_tasks) > 0:
-        print_section_summary(package_tasks, logger)
-
-
-def package_config_section(
-    blueprint: Blueprint, package_filter: Callable, logger: logging.Logger
-):
-    if len(blueprint.configs) == 0:
-        logger.warning("no config managers in blueprint, skipping config management")
-        return
-
-    # config managers shouldn't care about package managers, so we just get a list of the package
-    # names and give it to the config managers as a hint of what to config.
-    packages = [
-        p for manager_packages in blueprint.packages.values() for p in manager_packages
-    ]
-    packages = list(set(packages))
-    packages = package_filter(packages)
-    logger.debug(f"config packages: {packages}")
-    if len(packages) == 0:
-        logger.warning(
-            "no packages are visible to config (hidden by filtering or failure); running config anyways"
-        )
-
-    with TaskSection("config management", blueprint, logger, emote) as section:
-        for manager_id, config in blueprint.configs.items():
-            manager = config_managers.get_manager(manager_id)
-            logger.debug(f"configmanager {manager_id}")
-
-            task = ManagerTask("config_manager", manager_id)
-            task.run(section, manager.apply_config, args=(config, packages))
-
-    # section summary
-    package_tasks = completed_package_tasks(section.completed_tasks)
-    if len(package_tasks) > 0:
-        print_section_summary(package_tasks, logger)
 
 
 class Cli(argparse.Namespace):
@@ -211,10 +151,10 @@ class Cli(argparse.Namespace):
     shell: Literal["sh", "pwsh"] | None
 
     def __init__(self):
-        cool_dude = term.orchid("b(￣▽￣)d")
         parser = argparse.ArgumentParser(
             prog="vulpix",
-            description=f"blueprint-driven system management/configuration tool [ {cool_dude} ]",
+            description="blueprint-driven system management/configuration tool "
+            f"[ {emotes['cool_dude']} ]",
             usage="%(prog)s [OPTIONS] <COMMAND>",
         )
         parser.add_argument(
@@ -359,6 +299,100 @@ class Cli(argparse.Namespace):
         if self.no_fullscreen:
             TaskSection.alt_screen = False
 
+    def whatif_log(self, log: str):
+        if self.whatif:
+            self.logger.info(log)
+        else:
+            self.logger.debug(log)
+
+    def package_manage_section(self, blueprint: Blueprint, package_filter: Callable):
+        if len(blueprint.packages) == 0:
+            self.logger.warning(
+                "no package managers in blueprint, skipping package management"
+            )
+            return
+
+        manager_diffs: dict[
+            str, package_managers.PackageManager.PackageDiff
+        ] = {}  # TODO: smaller PackageDiff ref
+        for manager_id, packages in blueprint.packages.items():
+            manager = package_managers.get_manager(manager_id)
+            diff = manager.get_package_diff(packages)
+            self.logger.debug(f"(og) {manager_id}: {diff}")
+
+            package_filter(manager_id, diff)
+            self.whatif_log(f"{manager_id}: {diff}")
+            manager_diffs[manager_id] = diff
+
+        # actually run it
+        if not self.whatif:
+            with TaskSection(
+                "package management",
+                blueprint,
+                logger=self.logger,
+                emote=emotes["section"],
+            ) as section:
+                for manager_id, diff in manager_diffs.items():
+                    manager = package_managers.get_manager(manager_id)
+                    if not any(
+                        len(v) > 0 for v in astuple(diff)
+                    ):  # TODO: more readable
+                        self.logger.warning(
+                            f"no regex matches, skipping '{manager_id}' manager"
+                        )
+                        continue
+
+                    task = ManagerTask("package_manager", manager_id)
+                    print(task)
+                    task.run(section, manager.apply_changes, args=(diff,))
+
+            # section summary
+            package_tasks = completed_package_tasks(section.completed_tasks)
+            if len(package_tasks) > 0:
+                print_section_summary(package_tasks, self.logger)
+
+    def package_config_section(self, blueprint: Blueprint, package_filter: Callable):
+        if len(blueprint.configs) == 0:
+            self.logger.warning(
+                "no config managers in blueprint, skipping config management"
+            )
+            return
+
+        # config managers shouldn't care about package managers, so we just get a list of the package
+        # names and give it to the config managers as a hint of what to config.
+        packages = [
+            p
+            for manager_packages in blueprint.packages.values()
+            for p in manager_packages
+        ]
+        packages = list(set(packages))
+        packages = package_filter(packages)
+
+        self.whatif_log(f"config managers: {list(blueprint.configs.keys())}")
+        self.whatif_log(f"config packages: {packages}")
+        if len(packages) == 0:
+            self.logger.warning(
+                "no packages are visible to config (hidden by filtering or failure); running config anyways"
+            )
+
+        # actually run it
+        if not self.whatif:
+            with TaskSection(
+                "config management",
+                blueprint,
+                logger=self.logger,
+                emote=emotes["section"],
+            ) as section:
+                for manager_id, config in blueprint.configs.items():
+                    manager = config_managers.get_manager(manager_id)
+                    task = ManagerTask("config_manager", manager_id)
+                    task.run(section, manager.apply_config, args=(config, packages))
+
+            # section summary
+            package_tasks = completed_package_tasks(section.completed_tasks)
+            if len(package_tasks) > 0:
+                print_section_summary(package_tasks, self.logger)
+
     def sync_command(self, blueprint_path: Path):
         main_cli_init()
         blueprint = parse_blueprint(blueprint_path, self.logger)
@@ -375,14 +409,14 @@ class Cli(argparse.Namespace):
             package_filter = build_package_filter(
                 self.apply, self.clean, self.reinstall
             )
-            package_manage_section(blueprint, package_filter, self.logger)
+            self.package_manage_section(blueprint, package_filter)
 
         if self.config is not None:
             config_pattern = self.config
             package_filter = lambda packages: [
                 p for p in packages if config_pattern.match(p)
             ]
-            package_config_section(blueprint, package_filter, self.logger)
+            self.package_config_section(blueprint, package_filter)
 
     def dotfiles_command(self, blueprint_path: Path):
         main_cli_init()
@@ -396,9 +430,7 @@ class Cli(argparse.Namespace):
                     "could not locate dotfiles; specify in blueprint or args"
                 )
         dotfiles_path = Path(dotfiles_path)
-        font_dir = (
-            dotfiles_path / "fonts"
-        )  # optional, but will install font files in here
+        font_dir = dotfiles_path / "fonts"  # optional
 
         # get dotfiles
         self.logger.info(f"finding dotfiles at '{dotfiles_path}'")
@@ -409,37 +441,43 @@ class Cli(argparse.Namespace):
             self.logger.warning("no dotfiles found")
 
         # check existing link targets
-        existing_targets = []
-        for item, link in links:
-            if link.exists():
-                try:
-                    utils.rm_link(link)
-                except OSError:
-                    self.logger.debug("link already exists", exc_info=True)
-                    existing_targets.append(link)
-        if len(existing_targets) > 0:
-            print()  # style
-            self.logger.warning(
-                "the following items will be overwritting and replaced by links:"
-            )
-            print("\n".join(["  - " + str(t) for t in existing_targets]) + "\n")
-            if not utils.verify("are you sure you want to continue?"):
-                raise VulpixError("dotfiles aborted")
+        if not self.whatif:
+            existing_targets = []
+            for item, link in links:
+                if link.exists():
+                    try:
+                        utils.rm_link(link)
+                    except OSError:
+                        self.logger.debug("link already exists", exc_info=True)
+                        existing_targets.append(link)
+            if len(existing_targets) > 0:
+                print()  # style
+                self.logger.warning(
+                    "the following items will be overwritting and replaced by links:"
+                )
+                print("\n".join(["  - " + str(t) for t in existing_targets]) + "\n")
+                if not utils.verify("are you sure you want to continue?"):
+                    raise VulpixError("dotfiles aborted")
 
-            for target in existing_targets:
-                utils.rm_fr(target)
-            print()  # style
+                for target in existing_targets:
+                    utils.rm_fr(target)
+                print()  # style
 
         # link dotfiles
         _max_item_len = max(len(utils.pretty_path(l[0])) for l in links)
         for item, link in links:
             self.logger.info(utils.pretty_link_log(item, link, _max_item_len))
-            utils.link(item, link, self.logger)
+            if not self.whatif:
+                utils.link(item, link, self.logger)
 
         # install fonts
         if font_dir.exists() and font_dir.is_dir():
-            self.logger.info(f"installing fonts in {utils.pretty_path(font_dir)}")
-            dotfiles.install_fonts(font_dir, self.logger)
+            d = utils.pretty_path(font_dir)
+            if self.whatif:
+                self.logger.info(f"would install fonts from {d}")
+            else:
+                self.logger.info(f"installing fonts from {d}")
+                dotfiles.install_fonts(font_dir, self.logger)
 
     def blueprint_command(self, blueprint: Path):
         if self.edit:
@@ -474,6 +512,7 @@ class Cli(argparse.Namespace):
         blueprint_path = dirs.VULPIX_CONFIG / "blueprint.yaml"
         if self.blueprint is not None:
             blueprint_path = Path(self.blueprint)
+        self.whatif_log(f"blueprint: {blueprint_path}")
 
         if not blueprint_path.exists():
             # TODO: ask if you wanna copy the default
