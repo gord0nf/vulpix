@@ -182,8 +182,10 @@ class LoggedCommand:
             raise VulpixError("external script failed")
 
         stdout, stderr = p.communicate()
-        self.stdout = stdout.split("\n")
-        self.stderr = stderr.split("\n")
+        if stdout:
+            self.stdout = stdout.split("\n")
+        if stderr:
+            self.stderr = stderr.split("\n")
 
         return self
 

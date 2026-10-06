@@ -41,8 +41,9 @@ regardless of whether they have a level number or are part of a package's config
 TODO: interface for passing config?
 """
 
+import importlib.util
+import inspect
 import re
-import runpy
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,7 @@ from typing import Any
 from vulpix.config_managers import ConfigManager, ManagerTask
 from vulpix.core import VulpixError, dirs, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
-from vulpix.utils import LoggedCommand, is_executable, path_as_salt
+from vulpix.utils import LoggedCommand, accepts_kwarg, is_executable, path_as_salt
 
 SCRIPTS_DIR = dirs.CONFIG / "config"
 
@@ -83,14 +84,44 @@ class Script:
             case ".ps1":
                 self.target_os = "windows"
 
-    @task_function
-    def run(self, config: Any, logger: logging.Logger, **_):
-        # TODO: figure out how to pass config to it...
+    def _run_as_python_script(self, **kwargs):
+        """
+        a python script is run by importing it. optionally, it looks for a `main` method which can
+        accept any of the kwargs passed to this function
 
+        usually they are the following args:
+
+        - config: Any
+        - logger: logging.Logger
+        - queue: ThreadedTaskQueue
+        """
+        logger = kwargs["logger"]
+        module_name = f"config_{self.path.stem.split('.')[0]}"
+        spec = importlib.util.spec_from_file_location(module_name, self.path)
+        if spec is None or spec.loader is None:
+            raise VulpixError(f"could not load spec for {self.path}")
+
+        script_module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(script_module)
+            if hasattr(script_module, "main"):
+                main = script_module.main
+                if callable(main):
+                    sig = inspect.signature(main)
+                    kwargs = {k: v for k, v in kwargs.items() if accepts_kwarg(sig, k)}
+                    main(**kwargs)
+        except Exception as e:  # noqa: BLE001
+            logger.error(str(e))
+            raise VulpixError("config script failed")
+
+    @task_function
+    def run(self, config: Any, logger: logging.Logger, queue: ThreadedTaskQueue, **_):
         # prefer python obviously
         if self.path.suffix == ".py":
-            runpy.run_path(str(self.path), run_name="__main__")
+            self._run_as_python_script(config=config, logger=logger, queue=queue)
             return
+
+        # TODO: figure out how to pass config to non-python scripts
 
         # fall back to external script execution
         if is_executable(self.path):
