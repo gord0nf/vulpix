@@ -35,14 +35,16 @@ as the above example shows, this manager also supports numbered script names lik
 `00-do-something.py`, which enables asynchronous script execution. the assumption is that all
 scripts at the same numbered level can be run in parallel.
 
-note that all files that are executable or end with ".sh"/".ps1"/".py" will attempt to be run,
-regardless of whether they have a level number or are part of a package's config dir.
+all files in the root dir or a `*.d` dir that are executable or end with ".sh"/".ps1"/".py" will
+attempt to be run, regardless of whether they have a level number. scripts in `{PACKAGE}.d` dir will
+only run if the `{PACKAGE}` is passed to this manager.
 
 TODO: interface for passing config?
 """
 
 import importlib.util
 import inspect
+import itertools
 import re
 from collections.abc import Generator
 from pathlib import Path
@@ -63,6 +65,12 @@ class Script:
     target_os: system.Os | None = None
 
     _level_prefix_pattern = re.compile("^(\\d+).*")
+
+    @staticmethod
+    def is_script(path: Path) -> bool:
+        return path.is_file() and (
+            is_executable(path) or path.suffix in [".py", ".sh", ".ps1"]
+        )
 
     def __init__(self, path: Path):
         self.path = path.resolve()
@@ -143,8 +151,10 @@ class Script:
 def find_scripts() -> list[Script]:
     paths = [
         p
-        for p in SCRIPTS_DIR.rglob("*")
-        if p.is_file() and (is_executable(p) or p.suffix in [".py", ".sh", ".ps1"])
+        for p in itertools.chain.from_iterable(
+            [SCRIPTS_DIR.glob("*"), SCRIPTS_DIR.glob("*.d/*")]
+        )
+        if Script.is_script(p)
     ]
     return [Script(p) for p in paths]
 
