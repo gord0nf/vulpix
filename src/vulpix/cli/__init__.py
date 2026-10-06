@@ -7,10 +7,10 @@ from dataclasses import astuple
 from pathlib import Path
 from typing import Literal
 
-from vulpix import __version__, config_managers, package_managers
+from vulpix import __version__, config_managers, package_managers, utils
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, term
-from vulpix.core import VulpixError, dirs, dotenv, system
+from vulpix.core import VulpixError, dirs, dotenv, dotfiles, system
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
@@ -296,9 +296,7 @@ class Cli(argparse.Namespace):
         )
 
         # dotfiles command
-        dotfiles_desc = (
-            "creates symlinks from stuff in dotfiles path to all the correct locations."
-        )
+        dotfiles_desc = "symlinks dotfiles to system locations."
         dotfiles_parser = subparsers.add_parser(
             "dotfiles", help=dotfiles_desc, description=dotfiles_desc
         )
@@ -388,6 +386,60 @@ class Cli(argparse.Namespace):
 
     def dotfiles_command(self, blueprint_path: Path):
         main_cli_init()
+        dotfiles_path = self.path
+        if not dotfiles_path:
+            blueprint = parse_blueprint(blueprint_path, self.logger)
+            if blueprint.dotfiles:
+                dotfiles_path = blueprint.dotfiles
+            else:
+                raise VulpixError(
+                    "could not locate dotfiles; specify in blueprint or args"
+                )
+        dotfiles_path = Path(dotfiles_path)
+        font_dir = (
+            dotfiles_path / "fonts"
+        )  # optional, but will install font files in here
+
+        # get dotfiles
+        self.logger.info(f"finding dotfiles at '{dotfiles_path}'")
+        links = dotfiles.iter_dotfiles(
+            dotfiles_path, ignore_paths=[font_dir], logger=self.logger
+        )
+        if len(links) == 0:
+            self.logger.warning("no dotfiles found")
+
+        # check existing link targets
+        existing_targets = []
+        for item, link in links:
+            if link.exists():
+                try:
+                    utils.rm_link(link)
+                except OSError:
+                    self.logger.debug("link already exists", exc_info=True)
+                    existing_targets.append(link)
+        if len(existing_targets) > 0:
+            print()  # style
+            self.logger.warning(
+                "the following items will be overwritting and replaced by links:"
+            )
+            print("\n".join(["  - " + str(t) for t in existing_targets]) + "\n")
+            if not utils.verify("are you sure you want to continue?"):
+                raise VulpixError("dotfiles aborted")
+
+            for target in existing_targets:
+                utils.rm_fr(target)
+            print()  # style
+
+        # link dotfiles
+        _max_item_len = max(len(utils.pretty_path(l[0])) for l in links)
+        for item, link in links:
+            self.logger.info(utils.pretty_link_log(item, link, _max_item_len))
+            utils.link(item, link, self.logger)
+
+        # install fonts
+        if font_dir.exists() and font_dir.is_dir():
+            self.logger.info(f"installing fonts in {utils.pretty_path(font_dir)}")
+            dotfiles.install_fonts(font_dir, self.logger)
 
     def blueprint_command(self, blueprint: Path):
         if self.edit:

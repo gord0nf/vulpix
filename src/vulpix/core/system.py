@@ -65,12 +65,14 @@ def check_root() -> bool:
         return False
 
 
-def check_symlinks() -> bool:
-    # TODO: better checking since windows supports symlinks if developer mode or admin
-    return get_os() != "windows"
-
-
 ARCH: Final[Arch] = get_arch()
 OS: Final[Os] = get_os()
 IS_ROOT: Final[bool] = check_root()
+
+
+def check_symlinks() -> bool:
+    # TODO: better checking since windows supports symlinks if developer mode or admin
+    return OS != "windows"
+
+
 SUPPORTS_SYMLINKS: Final[bool] = check_symlinks()

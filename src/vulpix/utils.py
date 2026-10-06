@@ -27,6 +27,14 @@ def is_junction(path: Path) -> bool:
     return not path.is_symlink()
 
 
+def has_hardlinks(path: Path) -> bool:
+    return path.stat().st_nlink > 1
+
+
+def is_link(path: Path) -> bool:
+    return path.is_symlink() or has_hardlinks(path) or is_junction(path)
+
+
 def create_junction(target: Path, link: Path):
     cmd = [
         "mklink",
@@ -84,10 +92,12 @@ def link(target: Path, link: Path, logger: logging.Logger):
 
 
 def rm_link(link: Path):
-    if system.OS == "windows" and link.is_dir():
+    if is_junction(link):
         rm_junction(link)
-    else:
+    elif is_link(link):
         link.unlink()
+    else:
+        raise ValueError("expected a link")
 
 
 def rm_fr(path: Path):
@@ -151,6 +161,11 @@ def path_as_salt(path: Path):
 
 def command_exists(command: str) -> bool:
     return shutil.which(command) is not None
+
+
+def verify(prompt: str) -> bool:
+    reply = input(f"{prompt} (y/n): ").strip()
+    return reply.lower().startswith("y")
 
 
 class LoggedCommand:
@@ -309,3 +324,16 @@ def accepts_kwarg(func_sig: inspect.Signature, kwarg_name: str):
     return any(
         p.kind == inspect.Parameter.VAR_KEYWORD for p in func_sig.parameters.values()
     )
+
+
+def pretty_path(path: Path) -> str:
+    s = str(path.resolve())
+    home_s = str(Path.home())
+    if s.startswith(home_s):
+        s = "~" + s[len(home_s) :]
+    return s
+
+
+def pretty_link_log(target: Path, link: Path, max_target_len: int) -> str:
+    target_s, link_s = pretty_path(target), pretty_path(link)
+    return f"{target_s}{' ' * (max_target_len - len(target_s))} ->  {link_s}"

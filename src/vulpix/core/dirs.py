@@ -55,3 +55,19 @@ VULPIX_DATA: Final[Path] = Path(os.getenv("VULPIX_DATA") or data("vulpix"))
 VULPIX_LOG: Final[Path] = Path(os.getenv("VULPIX_LOG") or log("vulpix"))
 VULPIX_CONFIG: Final[Path] = Path(os.getenv("VULPIX_CONFIG") or config("vulpix"))
 VULPIX_TMP: Final[Path] = Path(os.getenv("VULPIX_TMP") or tmp("vulpix"))
+
+
+def font_install() -> Path:
+    if system.OS == "windows":
+        if system.IS_ROOT:
+            return Path("C:\\Windows\\Fonts")
+        else:
+            return Path(os.environ["LOCALAPPDATA"]) / "Microsoft\\Windows\\Fonts"
+    else:
+        if system.IS_ROOT:
+            return Path("/usr/share/fonts")
+        else:
+            return Path.home() / ".local/share/fonts"
+
+
+FONT_INSTALL: Final[Path] = font_install()

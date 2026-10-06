@@ -1,6 +1,3 @@
-- task section ui
-- package configuration
-- dotfiles command
 - whatif option
 - blueprint editting options (-add, etc)
 - replay command
