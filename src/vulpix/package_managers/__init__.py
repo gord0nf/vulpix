@@ -1,7 +1,7 @@
 import importlib
 import sys
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import astuple, dataclass, field
 
 from vulpix.core.manager_tasks import *
 from vulpix.core.managers import *
@@ -19,15 +19,19 @@ class InvalidPackage(Exception):
         return f"invalid package '{self.package}' for '{self.manager}' manager"
 
 
+@dataclass
+class PackageDiff:
+    to_install: list[str] = field(default_factory=list)
+    to_update: list[str] = field(default_factory=list)
+    to_reinstall: list[str] = field(default_factory=list)
+    to_uninstall: list[str] = field(default_factory=list)
+
+    def is_empty(self) -> bool:
+        return all(len(v) == 0 for v in astuple(self))
+
+
 class PackageManager(ABC):
     """base class that all package managers (including external plugins) must inherit from"""
-
-    @dataclass
-    class PackageDiff:
-        to_install: list[str] = field(default_factory=list)
-        to_update: list[str] = field(default_factory=list)
-        to_reinstall: list[str] = field(default_factory=list)
-        to_uninstall: list[str] = field(default_factory=list)
 
     @abstractmethod
     def check_packages(self, packages: list[str]) -> None:

@@ -46,7 +46,12 @@ from dacite import DaciteError
 
 from vulpix.core import dirs, dotenv, logging, system
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
-from vulpix.package_managers import InvalidPackage, ManagerTask, PackageManager
+from vulpix.package_managers import (
+    InvalidPackage,
+    ManagerTask,
+    PackageDiff,
+    PackageManager,
+)
 from vulpix.utils import (
     AtomicChange,
     DataclassFile,
@@ -332,10 +337,8 @@ class ManualManager(PackageManager):
             if not library.check_package(package):
                 raise InvalidPackage(package, "manual")
 
-    def get_package_diff(
-        self, blueprint_packages: list[str]
-    ) -> PackageManager.PackageDiff:
-        diff = self.PackageDiff()
+    def get_package_diff(self, blueprint_packages: list[str]) -> PackageDiff:
+        diff = PackageDiff()
 
         with status_datafile as status:
             for package, pstatus in status.by_package.items():
@@ -349,9 +352,7 @@ class ManualManager(PackageManager):
         return diff
 
     @task_function
-    def apply_changes(
-        self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue
-    ) -> None:
+    def apply_changes(self, diff: PackageDiff, queue: ThreadedTaskQueue) -> None:
         spawned_tasks: list[str] = []
 
         for package in diff.to_uninstall:

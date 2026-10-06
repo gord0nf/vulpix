@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 from collections.abc import Callable
-from dataclasses import astuple
 from pathlib import Path
 from typing import Literal
 
@@ -58,9 +57,7 @@ def build_package_filter(
     clean: re.Pattern[str] | None,
     reinstall: re.Pattern[str] | None,
 ) -> Callable:
-    def filter_package_changes(
-        manager: str, changes: package_managers.PackageManager.PackageDiff
-    ):
+    def filter_package_changes(manager: str, changes: package_managers.PackageDiff):
         def filter_packages(
             packages: list[str], regex: re.Pattern[str], negate=False
         ) -> list[str]:
@@ -312,9 +309,7 @@ class Cli(argparse.Namespace):
             )
             return
 
-        manager_diffs: dict[
-            str, package_managers.PackageManager.PackageDiff
-        ] = {}  # TODO: smaller PackageDiff ref
+        manager_diffs: dict[str, package_managers.PackageDiff] = {}
         for manager_id, packages in blueprint.packages.items():
             manager = package_managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
@@ -322,6 +317,12 @@ class Cli(argparse.Namespace):
 
             package_filter(manager_id, diff)
             self.whatif_log(f"{manager_id}: {diff}")
+            if diff.is_empty():
+                self.logger.warning(
+                    f"no regex matches, skipping '{manager_id}' manager"
+                )
+                continue
+
             manager_diffs[manager_id] = diff
 
         # actually run it
@@ -334,16 +335,7 @@ class Cli(argparse.Namespace):
             ) as section:
                 for manager_id, diff in manager_diffs.items():
                     manager = package_managers.get_manager(manager_id)
-                    if not any(
-                        len(v) > 0 for v in astuple(diff)
-                    ):  # TODO: more readable
-                        self.logger.warning(
-                            f"no regex matches, skipping '{manager_id}' manager"
-                        )
-                        continue
-
                     task = ManagerTask("package_manager", manager_id)
-                    print(task)
                     task.run(section, manager.apply_changes, args=(diff,))
 
             # section summary

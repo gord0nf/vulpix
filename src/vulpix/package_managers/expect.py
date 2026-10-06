@@ -13,7 +13,7 @@ three types of package verification:
 
 from vulpix.core import logging
 from vulpix.core.tasks import ThreadedTaskQueue, task_function
-from vulpix.package_managers import ManagerTask, PackageManager
+from vulpix.package_managers import ManagerTask, PackageDiff, PackageManager
 from vulpix.utils import VulpixError, command_exists
 
 
@@ -42,15 +42,11 @@ class ExpectManager(PackageManager):
     def check_packages(self, packages: list[str]) -> None:
         pass  # expect doesn't have strict packages, see above
 
-    def get_package_diff(
-        self, blueprint_packages: list[str]
-    ) -> PackageManager.PackageDiff:
-        return self.PackageDiff(to_install=blueprint_packages)
+    def get_package_diff(self, blueprint_packages: list[str]) -> PackageDiff:
+        return PackageDiff(to_install=blueprint_packages)
 
     @task_function
-    def apply_changes(
-        self, diff: PackageManager.PackageDiff, queue: ThreadedTaskQueue
-    ) -> None:
+    def apply_changes(self, diff: PackageDiff, queue: ThreadedTaskQueue) -> None:
         for package in diff.to_install:
             if template_exists(package):
                 task_func = check_template
