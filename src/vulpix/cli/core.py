@@ -386,6 +386,8 @@ class Cli(argparse.Namespace):
         else:
             log_name = utils.prompt_choice("select log", log_names)
 
+        if not self.verbose:
+            self.logger.warning("use --verbose to see debug logs")
         logging.console_log_to(sys.stdout, self.logger)  # temp log to stdout
         logging.replay_log_file(log_name, self.logger)
         logging.console_log_to(sys.stderr, self.logger)
