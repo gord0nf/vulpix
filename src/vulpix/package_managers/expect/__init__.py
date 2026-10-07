@@ -16,14 +16,29 @@ from vulpix.core.tasks import ThreadedTaskQueue, task_function
 from vulpix.package_managers import ManagerTask, PackageDiff, PackageManager
 from vulpix.utils import VulpixError, command_exists
 
-
-def template_exists(name: str) -> bool:
-    return False  # TODO
+from . import templates
 
 
 @task_function
 def check_template(package: str, logger: logging.Logger):
-    pass  # TODO
+    template = templates.templates[package]
+    failed = False
+
+    for binary in template.all_binaries:
+        if not command_exists(binary):
+            failed = True
+            logger.error(f"expected command: {binary}")
+
+    for binaries in template.some_binaries:
+        if not any(command_exists(b) for b in binaries):
+            failed = True
+            logger.error(f"expected at least one of these commands: {binaries}")
+
+    if not failed and template.check:
+        failed = not template.check(logger)
+
+    if failed:
+        raise VulpixError("template check failed")
 
 
 @task_function
@@ -48,7 +63,7 @@ class ExpectManager(PackageManager):
     @task_function
     def apply_changes(self, diff: PackageDiff, queue: ThreadedTaskQueue) -> None:
         for package in diff.to_install:
-            if template_exists(package):
+            if package in templates.templates:
                 task_func = check_template
             elif package.endswith("!"):
                 task_func = check_force
