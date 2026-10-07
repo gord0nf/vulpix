@@ -1,12 +1,13 @@
 import sys
 
-from vulpix.cli import Cli
+from vulpix.cli import parse_cli
 from vulpix.core import dirs
 from vulpix.utils import VulpixError
 
 
 def main():
-    cli = Cli()
+    cli = parse_cli()
+    cli.init_console_logging()
     try:
         cli.main()
     except VulpixError as e:

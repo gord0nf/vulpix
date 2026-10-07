@@ -9,9 +9,17 @@ from vulpix.core import VulpixError
 from vulpix.core.blueprint import Blueprint
 from vulpix.core.tasks import ThreadedTaskQueue
 
+emotes = {
+    "cool_dude": term.orchid("b(￣▽￣)d"),
+    "section": term.orchid("(*￣０￣)ノ"),
+    "success": term.green(" ✿ ◠‿◠ "),
+    "failure": term.red("＞︿＜"),
+    "title": " ~(￣▽￣)~* ",
+}
+
 
 def sugary(title: str, color1: Callable, color2: Callable, color3: Callable) -> str:
-    title = color1(" ~(￣▽￣)~* ") + color2("   " + title.upper() + "   ")
+    title = color1(emotes["title"]) + color2("   " + title.upper() + "   ")
     remainder = color3(" " * (term.width - term.length(title)))
     return term.black(title + remainder)
 

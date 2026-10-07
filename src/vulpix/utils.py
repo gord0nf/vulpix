@@ -191,6 +191,18 @@ def prompt_choice(
     return choices[i]
 
 
+default_editor = "notepad" if system.OS == "windows" else "nano"
+
+
+def open_in_editor(path: Path, logger: logging.Logger):
+    editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"opening '{editor} {path}'")
+    os.chdir(path.parent)
+    subprocess.call([editor, str(path)])
+
+
 class LoggedCommand:
     cmd: list[str]
     logger: logging.Logger
