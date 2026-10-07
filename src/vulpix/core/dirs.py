@@ -15,33 +15,27 @@ def data(app: str) -> Path:
             return Path("/var/lib/") / app
     else:
         if system.OS == "windows":
-            return Path(os.environ["LOCALAPPDATA"]) / app
+            return Path(os.environ["LOCALAPPDATA"]) / f"{app}-data"
         else:
             return Path.home() / ".local/state" / app
 
 
 def log(app: str) -> Path:
-    if system.IS_ROOT:
-        if system.OS == "windows":
-            return Path(os.environ["ProgramData"]) / app / "log"
-        else:
-            return Path("/var/log") / app
+    if system.IS_ROOT and system.OS != "windows":
+        return Path("/var/log") / app
     else:
-        if system.OS == "windows":
-            return Path(os.environ["LOCALAPPDATA"]) / app / "log"
-        else:
-            return Path.home() / ".local/state" / app / "log"
+        return data(app) / "log"
 
 
 def config(app: str) -> Path:
     if system.IS_ROOT:
         if system.OS == "windows":
-            return Path(os.environ["ProgramData"]) / app / "config"
+            return data(app) / "config"
         else:
             return Path("/etc") / app
     else:
         if system.OS == "windows":
-            return Path(os.environ["APPDATA"]) / app
+            return Path(os.environ["LOCALAPPDATA"]) / app
         else:
             return Path.home() / ".config" / app
 
