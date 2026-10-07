@@ -1,4 +1,3 @@
-import shutil
 import sys
 import threading
 
@@ -39,14 +38,6 @@ def attach_console_logging(
     logger.addHandler(handler)
 
 
-# main is an exception because it represents per run logs that need to be cleared every run, no
-# matter what the cli wants to do (e.g. replaying logs)
-MAIN_LOG_FILE = dirs.VULPIX_LOG / "main.log"
-MAIN_LOG_FILE.unlink(missing_ok=True)
-
-
 def clear_logs():
-    """this skips root level files (like main.log) because those should be handled manually"""
-    for item in dirs.VULPIX_LOG.iterdir():
-        if item.is_dir():
-            shutil.rmtree(item)
+    for p in dirs.VULPIX_LOG.rglob("*.log"):
+        p.unlink()

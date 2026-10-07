@@ -23,11 +23,6 @@ emotes = {
 }
 
 
-def main_cli_init():
-    logging.clear_logs()
-    dotenv.datafile.check()
-
-
 def open_in_editor(path: Path, logger: logging.Logger):
     editor = os.getenv("VISUAL", os.getenv("EDITOR", default_editor))
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -288,13 +283,21 @@ class Cli(argparse.Namespace):
 
         # main logger
         self.logger = logging.getLogger("main")
-        logging.attach_log_file(self.logger)
         logging.attach_console_logging(self.logger, verbose=self.verbose)
 
         # TaskSection settings
         TaskSection.verbose_loggers = self.verbose
         if self.no_fullscreen:
             TaskSection.alt_screen = False
+
+    def init_logging(self):
+        """
+        this initializes a main portion of the cli by clearing log files and attaching main log
+        file. this is seperate from __init__() because some subcommands require logs... those
+        subcommands just have fileless main logging.
+        """
+        logging.clear_logs()
+        logging.attach_log_file(self.logger)
 
     def whatif_log(self, log: str):
         if self.whatif:
@@ -386,7 +389,9 @@ class Cli(argparse.Namespace):
                 print_section_summary(package_tasks, self.logger)
 
     def sync_command(self, blueprint_path: Path):
-        main_cli_init()
+        self.init_logging()
+        dotenv.datafile.check()  # managers can rely on dotenv, so check it first
+
         blueprint = parse_blueprint(blueprint_path, self.logger)
 
         # no opts = --clean --apply --config
@@ -411,7 +416,8 @@ class Cli(argparse.Namespace):
             self.package_config_section(blueprint, package_filter)
 
     def dotfiles_command(self, blueprint_path: Path):
-        main_cli_init()
+        self.init_logging()
+
         dotfiles_path = self.path
         if not dotfiles_path:
             blueprint = parse_blueprint(blueprint_path, self.logger)
@@ -472,6 +478,8 @@ class Cli(argparse.Namespace):
                 dotfiles.install_fonts(font_dir, self.logger)
 
     def blueprint_command(self, blueprint: Path):
+        self.init_logging()
+
         if self.edit:
             open_in_editor(blueprint, self.logger)
             return
@@ -479,6 +487,8 @@ class Cli(argparse.Namespace):
         self.logger.warning("nothing to do")
 
     def dotenv_command(self):
+        self.init_logging()
+
         if self.shell is None:
             dotenv.datafile.check()
             open_in_editor(dotenv.path, self.logger)
