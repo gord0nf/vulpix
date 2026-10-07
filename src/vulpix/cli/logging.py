@@ -1,5 +1,6 @@
 import sys
 import threading
+from typing import TextIO
 
 from blessed import Terminal
 
@@ -36,6 +37,15 @@ def attach_console_logging(
     handler.lock = term_lock  # pyright: ignore # needs to be an RLock, idk why it wants Lock...
 
     logger.addHandler(handler)
+
+
+_console_streams = [sys.stderr, sys.stdout]
+
+
+def console_log_to(stream: TextIO, logger: Logger):
+    for handler in logger.handlers:
+        if isinstance(handler, StreamHandler) and handler.stream in _console_streams:
+            handler.stream = stream
 
 
 def clear_logs():

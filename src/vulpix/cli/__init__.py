@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -506,7 +507,24 @@ class Cli(argparse.Namespace):
         print(source)
 
     def replay_command(self):
-        self.logger.info("replay")
+        log_names = logging.get_log_file_names()
+        if len(log_names) == 0:
+            self.logger.warning("no log files")
+            return
+
+        if self.log:
+            log_names = [l for l in log_names if self.log.search(l)]
+            if len(log_names) == 0:
+                raise VulpixError("no log files matching regex")
+
+        if len(log_names) == 1:
+            log_name = log_names[0]
+        else:
+            log_name = utils.prompt_choice("select log", log_names)
+
+        logging.console_log_to(sys.stdout, self.logger)  # temp log to stdout
+        logging.replay_log_file(log_name, self.logger)
+        logging.console_log_to(sys.stderr, self.logger)
 
     def main(self):
         self.logger.debug(str(self))

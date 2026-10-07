@@ -168,6 +168,29 @@ def verify(prompt: str) -> bool:
     return reply.lower().startswith("y")
 
 
+def prompt_choice(
+    prompt: str, choices: list[str], print_choices: list[str] | None = None
+) -> str:
+    if not print_choices:
+        print_choices = choices
+    elif len(choices) != len(print_choices):
+        raise ValueError("invalid print_choices len")
+
+    for i in range(len(print_choices)):
+        print(f"  {i + 1}) {print_choices[i]}")
+    print()  # style
+
+    reply = input(f"{prompt}: ").strip()
+    try:
+        i = int(reply) - 1
+    except ValueError:
+        raise VulpixError("invalid int")
+    if i < 0 or i >= len(choices):
+        raise VulpixError("invalid choice")
+    print()  # style
+    return choices[i]
+
+
 class LoggedCommand:
     cmd: list[str]
     logger: logging.Logger
