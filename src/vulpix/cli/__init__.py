@@ -139,6 +139,7 @@ class Cli(argparse.Namespace):
 
     # replay command
     log: re.Pattern[str] | None = None
+    list: bool = False
 
     # dotenv command
     shell: Literal["sh", "pwsh"] | None
@@ -275,6 +276,9 @@ class Cli(argparse.Namespace):
             nargs="?",
             default=".*",
             help="filter log files",
+        )
+        replay_parser.add_argument(
+            "-l", "--list", action="store_true", help="list available logs."
         )
 
         # actaually parse it! -----------------------------------------
@@ -508,6 +512,11 @@ class Cli(argparse.Namespace):
 
     def replay_command(self):
         log_names = logging.get_log_file_names()
+        if self.list:
+            for name in log_names:
+                print(name)
+            return
+
         if len(log_names) == 0:
             self.logger.warning("no log files")
             return
