@@ -19,7 +19,10 @@ def install_fonts(font_dir: Path, logger: logging.Logger):
         return
     for f in font_files:
         logger.debug(f"copying {f}")
-        shutil.copy2(f, dirs.FONT_INSTALL)
+        try:
+            shutil.copy2(f, dirs.FONT_INSTALL)
+        except FileExistsError, PermissionError:
+            logger.debug("copy failed, continuing", exc_info=True)
 
     match system.OS:
         case "windows":

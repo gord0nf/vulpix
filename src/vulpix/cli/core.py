@@ -305,7 +305,7 @@ class Cli(argparse.Namespace):
                 if link.exists():
                     try:
                         utils.rm_link(link)
-                    except OSError:
+                    except OSError, ValueError:
                         self.logger.debug("link already exists", exc_info=True)
                         existing_targets.append(link)
             if len(existing_targets) > 0:
