@@ -1,6 +1,16 @@
 [project]
 name = "vulpix"
 dynamic = ["version", "description"]
+requires-python = ">=3.14"
+dependencies = [
+  "ansicon==1.89.0",
+  "blessed==1.50.0",
+  "dacite==1.9.2",
+  "filelock==4.0.0",
+  "jinxed==2.1.0",
+  "PyYAML==6.0.3",
+  "wcwidth==0.8.4",
+]
 
 [project.scripts]
 vulpix = "vulpix.__main__:main"
