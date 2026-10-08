@@ -50,8 +50,10 @@ class ManagerTask:
 
 package_task_pattern = re.compile("^(.+)\\[(.+)@(.+)\\]$")
 
+type TaskStatusDict = dict[ManagerTask, bool]
 
-def completed_package_tasks(og: dict[str, bool]) -> dict[ManagerTask, bool]:
+
+def completed_package_tasks(og: dict[str, bool]) -> TaskStatusDict:
     """filters out manager package tasks and returns with dict keys as parsed ManagerTasks"""
     parsed: dict[ManagerTask, bool] = {}
     for task_name, status in og.items():

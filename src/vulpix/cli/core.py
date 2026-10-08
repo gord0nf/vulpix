@@ -9,7 +9,11 @@ from vulpix import config_managers, package_managers, utils
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, emotes, term
 from vulpix.core import VulpixError, blueprint, dirs, dotenv, dotfiles
-from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
+from vulpix.core.manager_tasks import (
+    ManagerTask,
+    TaskStatusDict,
+    completed_package_tasks,
+)
 
 
 def build_package_filter(
@@ -17,7 +21,9 @@ def build_package_filter(
     clean: re.Pattern[str] | None,
     reinstall: re.Pattern[str] | None,
 ) -> Callable:
-    def filter_package_changes(manager: str, changes: package_managers.PackageDiff):
+    def _filter(
+        manager: str, changes: package_managers.PackageDiff
+    ) -> package_managers.PackageDiff:
         def filter_packages(
             packages: list[str], regex: re.Pattern[str], negate=False
         ) -> list[str]:
@@ -51,10 +57,36 @@ def build_package_filter(
             changes.to_install = filter_packages(changes.to_install, apply)
             changes.to_update = filter_packages(changes.to_update, apply)
 
-    return filter_package_changes
+        return changes
+
+    return _filter
 
 
-def task_summary(tasks: dict[ManagerTask, bool]) -> str:
+def build_config_filter(
+    package_pattern: re.Pattern[str], package_tasks: TaskStatusDict | None
+) -> Callable:
+    def _filter(packages: list[str]) -> list[str]:
+        packages = [p for p in packages if package_pattern.match(p)]
+
+        if package_tasks:
+            status_by_package: dict[str, bool] = {}
+            for task, success in package_tasks.items():
+                status = status_by_package.get(task.package, True)
+                status_by_package[task.package] = status and success
+
+
+            packages = [
+                p
+                for p in packages
+                if p in status_by_package and status_by_package[p] is True
+            ]
+
+        return packages
+
+    return _filter
+
+
+def task_summary(tasks: TaskStatusDict) -> str:
     fmark, smark = term.red("failure"), term.green("success")
     failed = [
         f"  - {task.name} ({fmark})" for task, success in tasks.items() if not success
@@ -67,15 +99,16 @@ def task_summary(tasks: dict[ManagerTask, bool]) -> str:
     return "\n".join([*failed, *succeeded]) + "\n"
 
 
-def print_section_summary(tasks: dict[ManagerTask, bool], logger: logging.Logger):
-    tasks_failed = any(not status for status in tasks.values())
-    if tasks_failed:
-        logger.warning(
-            "some package tasks failed (`vulpix replay <task>` to check logs)"
-        )
+def print_section_summary(tasks: TaskStatusDict, logger: logging.Logger):
+    if len(tasks) > 0:
+        tasks_failed = any(not status for status in tasks.values())
+        if tasks_failed:
+            logger.warning(
+                "some package tasks failed (`vulpix replay <task>` to check logs)"
+            )
 
-    em = emotes["failure"] if tasks_failed else emotes["success"]
-    print(f"[{em}] summary:\n" + task_summary(tasks))
+        em = emotes["failure"] if tasks_failed else emotes["success"]
+        print(f"[{em}] summary:\n" + task_summary(tasks))
 
 
 class Cli(argparse.Namespace):
@@ -161,13 +194,13 @@ class Cli(argparse.Namespace):
         else:
             self.logger.debug(log)
 
-    def package_manage_section(self, package_filter: Callable):
+    def package_manage_section(self, package_filter: Callable) -> TaskStatusDict:
         bp = self.get_expanded_blueprint()
         if len(bp.packages) == 0:
             self.logger.warning(
                 "no package managers in blueprint, skipping package management"
             )
-            return
+            return {}
 
         manager_diffs: dict[str, package_managers.PackageDiff] = {}
         for manager_id, packages in bp.packages.items():
@@ -175,7 +208,7 @@ class Cli(argparse.Namespace):
             diff = manager.get_package_diff(packages)
             self.logger.debug(f"(og) {manager_id}: {diff}")
 
-            package_filter(manager_id, diff)
+            diff = package_filter(manager_id, diff)
             self.whatif_log(f"{manager_id}: {diff}")
             if diff.is_empty():
                 self.logger.warning(
@@ -185,31 +218,29 @@ class Cli(argparse.Namespace):
 
             manager_diffs[manager_id] = diff
 
-        # actually run it
-        if not self.whatif:
-            with TaskSection(
-                "package management",
-                bp,
-                logger=self.logger,
-                emote=emotes["section"],
-            ) as section:
-                for manager_id, diff in manager_diffs.items():
-                    manager = package_managers.get_manager(manager_id)
-                    task = ManagerTask("package_manager", manager_id)
-                    task.run(section, manager.apply_changes, args=(diff,))
+        if self.whatif:
+            return {}
 
-            # section summary
-            package_tasks = completed_package_tasks(section.completed_tasks)
-            if len(package_tasks) > 0:
-                print_section_summary(package_tasks, self.logger)
+        with TaskSection(
+            "package management",
+            bp,
+            logger=self.logger,
+            emote=emotes["section"],
+        ) as section:
+            for manager_id, diff in manager_diffs.items():
+                manager = package_managers.get_manager(manager_id)
+                task = ManagerTask("package_manager", manager_id)
+                task.run(section, manager.apply_changes, args=(diff,))
 
-    def package_config_section(self, package_filter: Callable):
+        return completed_package_tasks(section.completed_tasks)
+
+    def package_config_section(self, config_filter: Callable) -> TaskStatusDict:
         bp = self.get_expanded_blueprint()
         if len(bp.configs) == 0:
             self.logger.warning(
                 "no config managers in blueprint, skipping config management"
             )
-            return
+            return {}
 
         # config managers shouldn't care about package managers, so we just get a list of the package
         # names and give it to the config managers as a hint of what to config.
@@ -217,32 +248,32 @@ class Cli(argparse.Namespace):
             p for manager_packages in bp.packages.values() for p in manager_packages
         ]
         packages = list(set(packages))
-        packages = package_filter(packages)
+        self.logger.debug(f"(og) config packages: {packages}")
 
-        self.whatif_log(f"config managers: {list(bp.configs.keys())}")
+        packages = config_filter(packages)
         self.whatif_log(f"config packages: {packages}")
+        self.whatif_log(f"config managers: {list(bp.configs.keys())}")
         if len(packages) == 0:
             self.logger.warning(
                 "no packages are visible to config (hidden by filtering or failure); running config anyways"
             )
 
         # actually run it
-        if not self.whatif:
-            with TaskSection(
-                "config management",
-                bp,
-                logger=self.logger,
-                emote=emotes["section"],
-            ) as section:
-                for manager_id, config in bp.configs.items():
-                    manager = config_managers.get_manager(manager_id)
-                    task = ManagerTask("config_manager", manager_id)
-                    task.run(section, manager.apply_config, args=(config, packages))
+        if self.whatif:
+            return {}
 
-            # section summary
-            package_tasks = completed_package_tasks(section.completed_tasks)
-            if len(package_tasks) > 0:
-                print_section_summary(package_tasks, self.logger)
+        with TaskSection(
+            "config management",
+            bp,
+            logger=self.logger,
+            emote=emotes["section"],
+        ) as section:
+            for manager_id, config in bp.configs.items():
+                manager = config_managers.get_manager(manager_id)
+                task = ManagerTask("config_manager", manager_id)
+                task.run(section, manager.apply_config, args=(config, packages))
+
+        return completed_package_tasks(section.completed_tasks)
 
     # command methods ------------------------------------------------------------------------------
 
@@ -253,26 +284,18 @@ class Cli(argparse.Namespace):
         dotenv.datafile.loadf()
         self.get_expanded_blueprint()
 
-        # no opts = --clean --apply --config
-        if all(
-            o is None for o in [self.apply, self.clean, self.config, self.reinstall]
-        ):
-            self.clean = re.compile(".*")
-            self.apply = re.compile(".*")
-            self.config = re.compile(".*")
-
+        package_tasks: TaskStatusDict | None = None
         if any(o is not None for o in [self.apply, self.clean, self.reinstall]):
             package_filter = build_package_filter(
                 self.apply, self.clean, self.reinstall
             )
-            self.package_manage_section(package_filter)
+            package_tasks = self.package_manage_section(package_filter)
+            print_section_summary(package_tasks, self.logger)
 
         if self.config is not None:
-            config_pattern = self.config
-            package_filter = lambda packages: [
-                p for p in packages if config_pattern.match(p)
-            ]
-            self.package_config_section(package_filter)
+            config_filter = build_config_filter(self.config, package_tasks)
+            config_tasks = self.package_config_section(config_filter)
+            print_section_summary(config_tasks, self.logger)
 
     def dotfiles_command(self):
         self.init_file_logging()

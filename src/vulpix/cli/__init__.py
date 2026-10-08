@@ -78,6 +78,13 @@ def parse_cli() -> core.Cli:
         "they will be uninstalled.",
     )
     sync_parser.add_argument(
+        "-r",
+        "--reinstall",
+        type=regex_arg,
+        metavar="REGEX",
+        help="uninstalls then reinstalls matching packages",
+    )
+    sync_parser.add_argument(
         "-c",
         "--config",
         type=regex_arg,
@@ -85,15 +92,9 @@ def parse_cli() -> core.Cli:
         nargs="?",
         const=".*",
         default=None,
-        help="runs config managers for the specified packages (or all if no regex). the "
-        "config for any packages that fail another operation will not be run.",
-    )
-    sync_parser.add_argument(
-        "-r",
-        "--reinstall",
-        type=regex_arg,
-        metavar="REGEX",
-        help="uninstalls then reinstalls matching packages",
+        help="runs config managers for the specified packages (or all if no regex). if any other "
+        "operations are run, only packages corresponding to successful tasks will be run (if at "
+        "least one task that references a package fails, its config will not be run).",
     )
 
     # dotfiles command
@@ -110,9 +111,7 @@ def parse_cli() -> core.Cli:
 
     # blueprint command
     blueprint_desc = "open blueprint in $VISUAL/$EDITOR"
-    subparsers.add_parser(
-        "blueprint", help=blueprint_desc, description=blueprint_desc
-    )
+    subparsers.add_parser("blueprint", help=blueprint_desc, description=blueprint_desc)
 
     # dotenv command
     dotenv_desc = "source vulpix dotenv in your shell"
@@ -150,5 +149,13 @@ def parse_cli() -> core.Cli:
     parser.parse_args(namespace=cli)
     if not cli.command:
         parser.exit(status=1, message=parser.format_help())
+
+    # no sync opts = --clean --apply --config
+    if cli.command == "sync" and all(
+        o is None for o in [cli.apply, cli.clean, cli.config, cli.reinstall]
+    ):
+        cli.clean = re.compile(".*")
+        cli.apply = re.compile(".*")
+        cli.config = re.compile(".*")
 
     return cli
