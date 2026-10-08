@@ -6,7 +6,7 @@ from contextlib import AbstractContextManager
 from vulpix.cli import logging
 from vulpix.cli.logging import term, term_lock
 from vulpix.core import VulpixError
-from vulpix.core.blueprint import Blueprint
+from vulpix.core.blueprint import ExpandedBlueprint
 from vulpix.core.tasks import ThreadedTaskQueue
 
 emotes = {
@@ -39,9 +39,14 @@ class TaskSection(ThreadedTaskQueue):
     _scroll_region: AbstractContextManager
 
     def __init__(
-        self, name: str, blueprint: Blueprint, logger: logging.Logger, emote="(^人^)"
+        self,
+        name: str,
+        blueprint: ExpandedBlueprint,
+        logger: logging.Logger,
+        emote: str,
     ):
-        super().__init__(blueprint.settings.threads, logger)
+        threads = blueprint.settings.threads or -1  # kinda hacky but...
+        super().__init__(threads, logger)
         self.name = name
         self.emote = emote
         if self.alt_screen is None:
@@ -53,9 +58,7 @@ class TaskSection(ThreadedTaskQueue):
         self.footer_title = sugary(
             "tasks", term.on_fuchsia, term.on_maroon1, term.on_mediumorchid4
         )
-        self.footer_height = min(
-            blueprint.settings.threads + 1, term.height // 2
-        )  # +1 for title
+        self.footer_height = min(threads + 1, term.height // 2)  # +1 for title
 
         self.logger.debug(f"task_section footer height: {self.footer_height}")
         if self.footer_height <= 0:

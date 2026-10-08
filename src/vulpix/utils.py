@@ -249,6 +249,121 @@ dacite_config = dacite.Config(
 )
 
 
+class Dataclass(Protocol):
+    """https://stackoverflow.com/a/55240861"""
+
+    __dataclass_fields__: ClassVar[dict[str, Any]]
+
+
+type LoadFunction = Callable[[TextIO], dict]
+type DumpFunction = Callable[[dict, TextIO], None]
+
+default_load_func = staticmethod(json.load)
+default_dump_func = staticmethod(lambda d, f: json.dump(d, f, default=str, indent=4))
+
+
+class DataclassOps[D: Dataclass]:
+    dclass_def: type[D]
+    load_func: LoadFunction
+    dump_func: DumpFunction
+
+    def __init__(
+        self,
+        dclass: type[D],
+        load_func: LoadFunction = default_load_func,
+        dump_func: DumpFunction = default_dump_func,
+    ):
+        self.dclass_def = dclass
+        self.load_func = load_func
+        self.dump_func = dump_func
+
+    def from_dict(self, d: dict) -> D:
+        return dacite.from_dict(
+            data_class=self.dclass_def, data=d, config=dacite_config
+        )
+
+    def to_dict(self, dclass_instance: D, write_nones: bool = False) -> dict:
+        def _filter(data: list[tuple[str, Any]]) -> dict[str, Any]:
+            if write_nones:
+                return {k: v for k, v in data if not k.startswith("_")}
+            return {k: v for k, v in data if not k.startswith("_") and v is not None}
+
+        return asdict(dclass_instance, dict_factory=_filter)
+
+    def load(self, path: Path) -> D:
+        with open(path, "r") as file:
+            d = self.load_func(file)
+        return self.from_dict(d)
+
+    def dump(self, dclass_instance: D, path: Path):
+        d = self.to_dict(dclass_instance)
+        with open(path, "w") as file:
+            self.dump_func(d, file)
+
+
+class DataclassFile[D: Dataclass](DataclassOps[D]):
+    """
+    context manager that locks a file, reads and validates it into the target
+    dataclass, then writes and released file on exit.
+
+    IMPORTANT: the dataclass must have defaults/option fields if the file doesn't
+    exist
+    """
+
+    type HandleException = Callable[[type[Exception], Exception], bool | None]
+
+    path: Path
+    lock: FileLock
+    dclass_instance: D
+
+    acquire_timeout: int = 10
+    on_error: HandleException | None
+
+    def __init__(
+        self,
+        path: Path,
+        dclass: type[D],
+        on_error: HandleException | None = None,
+        load_func: LoadFunction = default_load_func,
+        dump_func: DumpFunction = default_dump_func,
+    ):
+        super().__init__(dclass, load_func, dump_func)
+        self.path = path
+        self.lock = FileLock(path.with_suffix(".lock"))
+        self.on_error = on_error
+
+    def __enter__(self) -> D:
+        try:
+            self.lock.acquire(timeout=self.acquire_timeout)
+        except Timeout:
+            raise VulpixError(f"couldn't aquire lock for {self.path}")
+
+        try:
+            exists = self.path.exists() and self.path.stat().st_size > 0
+            self.dclass_instance = self.load(self.path) if exists else self.dclass_def()
+        except Exception as e:
+            if not self.on_error or self.on_error(type(e), e) is False:
+                raise
+
+        return self.dclass_instance
+
+    def __exit__(self, exc_type, exc_value, *_):
+        try:
+            if exc_type is not None:
+                raise exc_value
+
+            self.dump(self.dclass_instance, self.path)
+        except Exception as e:
+            if not self.on_error or self.on_error(type(e), e) is False:
+                raise
+        finally:
+            self.lock.release()
+
+    def check(self):
+        with self:
+            pass
+
+
 class Broadcast:
     _event: threading.Event
     _lock: threading.Lock
@@ -264,90 +379,6 @@ class Broadcast:
 
     def wait(self):
         return self._event.wait()
-
-
-class Dataclass(Protocol):
-    """credit: https://stackoverflow.com/a/55240861"""
-
-    __dataclass_fields__: ClassVar[dict[str, Any]]
-
-
-def _asdict_no_underscores(data: list[tuple[str, Any]]) -> dict[str, Any]:
-    return {k: v for k, v in data if not k.startswith("_")}
-
-
-class DataclassFile[D: Dataclass]:
-    """
-    context manager that locks a file, reads and validates it into the target
-    dataclass, then writes and released file on exit.
-
-    IMPORTANT: the dataclass must have defaults/option fields if the file doesn't
-    exist
-    """
-
-    type LoadFunction = Callable[[TextIO], dict]
-    type DumpFunction = Callable[[dict, TextIO], None]
-    type HandleException = Callable[[type[Exception], Exception], bool | None]
-
-    path: Path
-    lock: FileLock
-    dclass_def: type[D]
-    dclass_instance: D
-
-    acquire_timeout: int = 10
-    load_func: LoadFunction = staticmethod(json.load)
-    dump_func: DumpFunction = staticmethod(
-        lambda d, f: json.dump(d, f, default=str, indent=4)
-    )
-    on_error: HandleException | None
-
-    def __init__(
-        self, path: Path, dclass: type[D], on_error: HandleException | None = None
-    ):
-        self.path = path
-        self.lock = FileLock(path.with_suffix(".lock"))
-        self.dclass_def = dclass
-        self.on_error = on_error
-
-    def __enter__(self) -> D:
-        try:
-            self.lock.acquire(timeout=self.acquire_timeout)
-        except Timeout:
-            raise VulpixError(f"couldn't aquire lock for {self.path}")
-
-        try:
-            if self.path.exists() and self.path.stat().st_size > 0:
-                with open(self.path, "r") as file:
-                    d = self.load_func(file)
-                self.dclass_instance = dacite.from_dict(
-                    data_class=self.dclass_def, data=d, config=dacite_config
-                )
-            else:
-                self.dclass_instance = self.dclass_def()
-        except Exception as e:
-            if not self.on_error or self.on_error(type(e), e) is False:
-                raise
-
-        return self.dclass_instance
-
-    def __exit__(self, exc_type, *_):
-        if exc_type is not None:
-            self.lock.release()
-            return False
-
-        try:
-            d = asdict(self.dclass_instance, dict_factory=_asdict_no_underscores)
-            with open(self.path, "w") as file:
-                self.dump_func(d, file)
-        except Exception as e:
-            if not self.on_error or self.on_error(type(e), e) is False:
-                raise
-
-        self.lock.release()
-
-    def check(self):
-        with self:
-            pass
 
 
 def accepts_kwarg(func_sig: inspect.Signature, kwarg_name: str):
@@ -373,3 +404,14 @@ def pretty_path(path: Path) -> str:
 def pretty_link_log(target: Path, link: Path, max_target_len: int) -> str:
     target_s, link_s = pretty_path(target), pretty_path(link)
     return f"{target_s}{' ' * (max_target_len - len(target_s))} ->  {link_s}"
+
+
+# https://stackoverflow.com/a/20666342
+def merge_dicts(source: dict, destination: dict) -> dict:
+    for key, value in source.items():
+        if isinstance(value, dict):
+            node = destination.setdefault(key, {})
+            merge_dicts(value, node)
+        else:
+            destination[key] = value
+    return destination

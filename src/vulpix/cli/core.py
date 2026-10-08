@@ -8,8 +8,7 @@ from typing import Literal
 from vulpix import config_managers, package_managers, utils
 from vulpix.cli import logging
 from vulpix.cli.task_section import TaskSection, emotes, term
-from vulpix.core import VulpixError, dirs, dotenv, dotfiles
-from vulpix.core.blueprint import Blueprint
+from vulpix.core import VulpixError, blueprint, dirs, dotenv, dotfiles
 from vulpix.core.manager_tasks import ManagerTask, completed_package_tasks
 
 
@@ -144,17 +143,19 @@ class Cli(argparse.Namespace):
 
         return blueprint_path
 
-    _blueprint: Blueprint | None = None
+    _cached_bp: blueprint.ExpandedBlueprint | None = None
 
-    def parse_blueprint(self) -> Blueprint:
-        if not self._blueprint:
-            from vulpix.cli.blueprint import expand_blueprint
+    def get_expanded_blueprint(self) -> blueprint.ExpandedBlueprint:
+        if self._cached_bp:
+            return self._cached_bp
 
-            path = self.get_blueprint_path()
-            _, self._blueprint = expand_blueprint(path, self.logger)
-            self.logger.debug(str(self._blueprint))
+        path = self.get_blueprint_path()
+        with blueprint.datafile(path, self.logger) as bp:
+            expanded_bp = blueprint.ExpandedBlueprint.expand(bp, path, self.logger)
 
-        return self._blueprint
+        self.logger.debug(str(expanded_bp))
+        self._cached_bp = expanded_bp
+        return expanded_bp
 
     def whatif_log(self, log: str):
         if self.whatif:
@@ -163,15 +164,15 @@ class Cli(argparse.Namespace):
             self.logger.debug(log)
 
     def package_manage_section(self, package_filter: Callable):
-        blueprint = self.parse_blueprint()
-        if len(blueprint.packages) == 0:
+        bp = self.get_expanded_blueprint()
+        if len(bp.packages) == 0:
             self.logger.warning(
                 "no package managers in blueprint, skipping package management"
             )
             return
 
         manager_diffs: dict[str, package_managers.PackageDiff] = {}
-        for manager_id, packages in blueprint.packages.items():
+        for manager_id, packages in bp.packages.items():
             manager = package_managers.get_manager(manager_id)
             diff = manager.get_package_diff(packages)
             self.logger.debug(f"(og) {manager_id}: {diff}")
@@ -190,7 +191,7 @@ class Cli(argparse.Namespace):
         if not self.whatif:
             with TaskSection(
                 "package management",
-                blueprint,
+                bp,
                 logger=self.logger,
                 emote=emotes["section"],
             ) as section:
@@ -205,8 +206,8 @@ class Cli(argparse.Namespace):
                 print_section_summary(package_tasks, self.logger)
 
     def package_config_section(self, package_filter: Callable):
-        blueprint = self.parse_blueprint()
-        if len(blueprint.configs) == 0:
+        bp = self.get_expanded_blueprint()
+        if len(bp.configs) == 0:
             self.logger.warning(
                 "no config managers in blueprint, skipping config management"
             )
@@ -215,14 +216,12 @@ class Cli(argparse.Namespace):
         # config managers shouldn't care about package managers, so we just get a list of the package
         # names and give it to the config managers as a hint of what to config.
         packages = [
-            p
-            for manager_packages in blueprint.packages.values()
-            for p in manager_packages
+            p for manager_packages in bp.packages.values() for p in manager_packages
         ]
         packages = list(set(packages))
         packages = package_filter(packages)
 
-        self.whatif_log(f"config managers: {list(blueprint.configs.keys())}")
+        self.whatif_log(f"config managers: {list(bp.configs.keys())}")
         self.whatif_log(f"config packages: {packages}")
         if len(packages) == 0:
             self.logger.warning(
@@ -233,11 +232,11 @@ class Cli(argparse.Namespace):
         if not self.whatif:
             with TaskSection(
                 "config management",
-                blueprint,
+                bp,
                 logger=self.logger,
                 emote=emotes["section"],
             ) as section:
-                for manager_id, config in blueprint.configs.items():
+                for manager_id, config in bp.configs.items():
                     manager = config_managers.get_manager(manager_id)
                     task = ManagerTask("config_manager", manager_id)
                     task.run(section, manager.apply_config, args=(config, packages))
@@ -254,7 +253,7 @@ class Cli(argparse.Namespace):
 
         # check core files first
         dotenv.datafile.check()
-        self.parse_blueprint()
+        self.get_expanded_blueprint()
 
         # no opts = --clean --apply --config
         if all(
@@ -282,9 +281,9 @@ class Cli(argparse.Namespace):
 
         dotfiles_path = self.path
         if not dotfiles_path:
-            blueprint = self.parse_blueprint()
-            if blueprint.dotfiles:
-                dotfiles_path = blueprint.dotfiles
+            bp = self.get_expanded_blueprint()
+            if bp.dotfiles:
+                dotfiles_path = bp.dotfiles
         if not dotfiles_path:
             raise VulpixError("could not locate dotfiles; specify in blueprint or arg")
         dotfiles_path = Path(dotfiles_path)
