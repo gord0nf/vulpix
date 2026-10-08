@@ -57,7 +57,7 @@ def completed_package_tasks(og: dict[str, bool]) -> dict[ManagerTask, bool]:
     for task_name, status in og.items():
         match = package_task_pattern.match(task_name)
         if match:
-            task = ManagerTask(match.group(1), match.group(2), match.group(3))
+            task = ManagerTask(match.group(1), match.group(3), match.group(2))
             parsed[task] = status
 
     return parsed
