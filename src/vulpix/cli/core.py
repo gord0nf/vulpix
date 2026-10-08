@@ -15,6 +15,8 @@ from vulpix.core.manager_tasks import (
     completed_package_tasks,
 )
 
+failure_s, success_s = term.red("failure"), term.green("success")
+
 
 def build_package_filter(
     apply: re.Pattern[str] | None,
@@ -62,19 +64,25 @@ def build_package_filter(
     return _filter
 
 
+def get_status_by_package(tasks: TaskStatusDict) -> dict[str, bool]:
+    """
+    reduces status by task to status by package (requiring all package tasks to be successful for
+    the package to be successful
+    """
+    status_by_package: dict[str, bool] = {}
+    for task, success in tasks.items():
+        status = status_by_package.get(task.package, True)
+        status_by_package[task.package] = status and success
+    return status_by_package
+
+
 def build_config_filter(
     package_pattern: re.Pattern[str], package_tasks: TaskStatusDict | None
 ) -> Callable:
     def _filter(packages: list[str]) -> list[str]:
         packages = [p for p in packages if package_pattern.match(p)]
-
         if package_tasks:
-            status_by_package: dict[str, bool] = {}
-            for task, success in package_tasks.items():
-                status = status_by_package.get(task.package, True)
-                status_by_package[task.package] = status and success
-
-
+            status_by_package = get_status_by_package(package_tasks)
             packages = [
                 p
                 for p in packages
@@ -87,12 +95,13 @@ def build_config_filter(
 
 
 def task_summary(tasks: TaskStatusDict) -> str:
-    fmark, smark = term.red("failure"), term.green("success")
     failed = [
-        f"  - {task.name} ({fmark})" for task, success in tasks.items() if not success
+        f"  - {task.name} ({failure_s})"
+        for task, success in tasks.items()
+        if not success
     ]
     succeeded = [
-        f"  - {task.name} ({smark})" for task, success in tasks.items() if success
+        f"  - {task.name} ({success_s})" for task, success in tasks.items() if success
     ]
     failed.sort()
     succeeded.sort()
@@ -104,7 +113,7 @@ def print_section_summary(tasks: TaskStatusDict, logger: logging.Logger):
         tasks_failed = any(not status for status in tasks.values())
         if tasks_failed:
             logger.warning(
-                "some package tasks failed (`vulpix replay <task>` to check logs)"
+                "some manager tasks failed (`vulpix replay <task>` to check logs)"
             )
 
         em = emotes["failure"] if tasks_failed else emotes["success"]
@@ -284,18 +293,24 @@ class Cli(argparse.Namespace):
         dotenv.datafile.loadf()
         self.get_expanded_blueprint()
 
-        package_tasks: TaskStatusDict | None = None
+        tasks: TaskStatusDict | None = None
         if any(o is not None for o in [self.apply, self.clean, self.reinstall]):
             package_filter = build_package_filter(
                 self.apply, self.clean, self.reinstall
             )
             package_tasks = self.package_manage_section(package_filter)
             print_section_summary(package_tasks, self.logger)
+            tasks = package_tasks
 
         if self.config is not None:
-            config_filter = build_config_filter(self.config, package_tasks)
+            config_filter = build_config_filter(self.config, tasks)
             config_tasks = self.package_config_section(config_filter)
             print_section_summary(config_tasks, self.logger)
+            tasks = utils.merge_dicts(tasks or {}, config_tasks)
+
+        # write tasks statuses for replay cmd
+        status = logging.TaskStatusLog({t.name: s for t, s in (tasks or {}).items()})
+        logging.task_status_datafile.dumpf(status)
 
     def dotfiles_command(self):
         self.init_file_logging()
@@ -399,10 +414,21 @@ class Cli(argparse.Namespace):
         if len(log_names) == 1:
             log_name = log_names[0]
         else:
-            log_name = utils.prompt_choice("select log", log_names)
+            task_status = logging.task_status_datafile.loadf().tasks
+
+            def choice_line(log_name: str) -> str:
+                task_name = Path(log_name).stem
+                if task_name in task_status:
+                    success = task_status[task_name]
+                    return f"{log_name} ({success_s if success else failure_s})"
+                return log_name
+
+            choices = [choice_line(l) for l in log_names]
+            log_name = utils.prompt_choice("select log", log_names, choices)
 
         if not self.verbose:
-            self.logger.warning("use --verbose to see debug logs")
+            self.logger.info("use --verbose to see debug logs")
+        self.logger.info(f"replaying '{log_name}' log:\n")
         logging.console_log_to(sys.stdout, self.logger)  # temp log to stdout
         logging.replay_log_file(log_name, self.logger)
         logging.console_log_to(sys.stderr, self.logger)

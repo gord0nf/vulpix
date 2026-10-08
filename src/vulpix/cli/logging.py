@@ -1,11 +1,15 @@
 import sys
 import threading
+from dataclasses import dataclass
+from json import JSONDecodeError
 from typing import TextIO
 
 from blessed import Terminal
+from dacite import DaciteError
 
 from vulpix.core import dirs
 from vulpix.core.logging import *
+from vulpix.utils import DataclassFile
 
 term = Terminal()
 term_lock = threading.RLock()
@@ -51,3 +55,26 @@ def console_log_to(stream: TextIO, logger: Logger):
 def clear_logs():
     for p in dirs.VULPIX_LOG.rglob("*.log"):
         p.unlink()
+
+
+# task status logs ------------------------------------------------
+
+
+@dataclass
+class TaskStatusLog:
+    tasks: dict[str, bool]  # like {task_name: status}
+
+
+def handle_taskstatus_error(_, exc_value: Exception):
+    try:
+        raise exc_value
+    except JSONDecodeError, DaciteError:
+        logger = getLogger("main")
+        logger.debug("task status parse failed", exc_info=True)
+        logger.warning("couldn't parse the status of task logs")
+
+
+task_status_path = dirs.VULPIX_LOG / "tasks.json"
+task_status_datafile = DataclassFile(
+    task_status_path, dclass=TaskStatusLog, on_error=handle_taskstatus_error
+)

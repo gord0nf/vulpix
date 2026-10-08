@@ -177,7 +177,7 @@ def prompt_choice(
         raise ValueError("invalid print_choices len")
 
     for i in range(len(print_choices)):
-        print(f"  {i + 1}) {print_choices[i]}")
+        print(f"  {i + 1:02d}) {print_choices[i]}")
     print()  # style
 
     reply = input(f"{prompt}: ").strip()
