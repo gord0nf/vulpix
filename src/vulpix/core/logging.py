@@ -57,3 +57,7 @@ def replay_log_file(log_name: str, logger: Logger) -> None:
                 message = match.group("message")
             else:
                 message += line
+
+        # flush final
+        if log_level is not None:
+            logger.log(log_level, message)
