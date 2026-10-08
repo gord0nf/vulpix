@@ -37,7 +37,7 @@ def simple_shell_wrapper(main: Callable[[str, logging.Logger], list[str]]):
 def run_external_script(script: str, *args: str, logger: logging.Logger) -> list[str]:
     cmd = [script, *args]
     if script.endswith(".ps1"):
-        cmd.insert(0, "powershell")
+        cmd = ["powershell", "-NoProfile", *cmd]
 
     cmd = LoggedCommand(*cmd, logger=logger).run(log_stdout=False)
     return cmd.stdout or []

@@ -215,6 +215,7 @@ class LoggedCommand:
         self.logger = logger
 
     def run(self, log_stdout: bool = True) -> Self:
+        self.logger.debug(f"running external cmd: {self.cmd}")
         if log_stdout:
             stdout_fd = subprocess.PIPE
             stderr_fd = subprocess.STDOUT
