@@ -330,7 +330,7 @@ class ManualManager(PackageManager):
         ROOT_DIR.mkdir(parents=True, exist_ok=True)
         BIN_DIR.mkdir(parents=True, exist_ok=True)
         STATUS_PATH.touch()
-        status_datafile.check()
+        status_datafile.loadf()  # check validity
 
     def check_packages(self, packages: list[str]) -> None:
         for package in packages:

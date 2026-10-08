@@ -150,8 +150,8 @@ class Cli(argparse.Namespace):
             return self._cached_bp
 
         path = self.get_blueprint_path()
-        with blueprint.datafile(path, self.logger) as bp:
-            expanded_bp = blueprint.ExpandedBlueprint.expand(bp, path, self.logger)
+        bp = blueprint.datafile(path, self.logger).loadf()
+        expanded_bp = blueprint.ExpandedBlueprint.expand(bp, path, self.logger)
 
         self.logger.debug(str(expanded_bp))
         self._cached_bp = expanded_bp
@@ -252,7 +252,7 @@ class Cli(argparse.Namespace):
         self.init_file_logging()
 
         # check core files first
-        dotenv.datafile.check()
+        dotenv.datafile.loadf()
         self.get_expanded_blueprint()
 
         # no opts = --clean --apply --config
@@ -349,7 +349,7 @@ class Cli(argparse.Namespace):
         self.init_file_logging()
 
         if self.shell is None:
-            dotenv.datafile.check()
+            dotenv.datafile.loadf()  # check validity
             utils.open_in_editor(dotenv.path, self.logger)
             return
 

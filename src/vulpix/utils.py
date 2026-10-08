@@ -314,7 +314,6 @@ class DataclassFile[D: Dataclass](DataclassOps[D]):
 
     path: Path
     lock: FileLock
-    dclass_instance: D
 
     acquire_timeout: int = 10
     on_error: HandleException | None
@@ -332,36 +331,44 @@ class DataclassFile[D: Dataclass](DataclassOps[D]):
         self.lock = FileLock(path.with_suffix(".lock"))
         self.on_error = on_error
 
+    def loadf(self) -> D:
+        try:
+            exists = self.path.exists() and self.path.stat().st_size > 0
+            return self.load(self.path) if exists else self.dclass_def()
+        except Exception as e:
+            if self.on_error:
+                self.on_error(type(e), e)
+            raise  # raise regardless of on_error return so we don't have to return None
+
+    def dumpf(self, dclass_instance: D):
+        try:
+            self.dump(dclass_instance, self.path)
+        except Exception as e:
+            if not self.on_error or self.on_error(type(e), e) is False:
+                raise
+
+    _dclass_instance: D
+
     def __enter__(self) -> D:
         try:
             self.lock.acquire(timeout=self.acquire_timeout)
         except Timeout:
             raise VulpixError(f"couldn't aquire lock for {self.path}")
 
-        try:
-            exists = self.path.exists() and self.path.stat().st_size > 0
-            self.dclass_instance = self.load(self.path) if exists else self.dclass_def()
-        except Exception as e:
-            if not self.on_error or self.on_error(type(e), e) is False:
-                raise
-
-        return self.dclass_instance
+        self._dclass_instance = self.loadf()
+        return self._dclass_instance
 
     def __exit__(self, exc_type, exc_value, *_):
         try:
             if exc_type is not None:
                 raise exc_value
 
-            self.dump(self.dclass_instance, self.path)
+            self.dumpf(self._dclass_instance)
         except Exception as e:
             if not self.on_error or self.on_error(type(e), e) is False:
                 raise
         finally:
             self.lock.release()
-
-    def check(self):
-        with self:
-            pass
 
 
 class Broadcast:
