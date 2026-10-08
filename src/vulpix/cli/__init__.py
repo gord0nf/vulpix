@@ -48,7 +48,7 @@ def parse_cli() -> core.Cli:
     subparsers = parser.add_subparsers(dest="command")
 
     # sync command
-    sync_desc = "syncs system/user with the blueprint."
+    sync_desc = "syncs system/user with the blueprint"
     sync_parser = subparsers.add_parser(
         "sync",
         help=sync_desc,
@@ -93,11 +93,11 @@ def parse_cli() -> core.Cli:
         "--reinstall",
         type=regex_arg,
         metavar="REGEX",
-        help="uninstalls then reinstalls matching packages.",
+        help="uninstalls then reinstalls matching packages",
     )
 
     # dotfiles command
-    dotfiles_desc = "symlinks dotfiles to system locations."
+    dotfiles_desc = "symlinks dotfiles to system locations"
     dotfiles_parser = subparsers.add_parser(
         "dotfiles", help=dotfiles_desc, description=dotfiles_desc
     )
@@ -105,20 +105,17 @@ def parse_cli() -> core.Cli:
         "path",
         nargs="?",
         default=None,
-        help="if not supplied, uses the path in the blueprint.",
+        help="if not supplied, uses the path in the blueprint",
     )
 
     # blueprint command
-    blueprint_desc = "edit the blueprint."
-    blueprint_parser = subparsers.add_parser(
+    blueprint_desc = "open blueprint in $VISUAL/$EDITOR"
+    subparsers.add_parser(
         "blueprint", help=blueprint_desc, description=blueprint_desc
-    )
-    blueprint_parser.add_argument(
-        "-e", "--edit", action="store_true", help="open in $VISUAL/$EDITOR."
     )
 
     # dotenv command
-    dotenv_desc = "source vulpix dotenv in your shell."
+    dotenv_desc = "source vulpix dotenv in your shell"
     dotenv_parser = subparsers.add_parser(
         "dotenv",
         help=dotenv_desc,
@@ -130,11 +127,11 @@ def parse_cli() -> core.Cli:
     dotenv_parser.add_argument("shell", choices=["sh", "pwsh"], nargs="?")
 
     # replay command
-    replay_desc = "replay a log file."
+    replay_desc = "replay a log file"
     replay_parser = subparsers.add_parser(
         "replay",
         help=replay_desc,
-        description=f"{replay_desc} prompts if multiple matches.",
+        description=f"{replay_desc} prompts if multiple matches",
     )
     replay_parser.add_argument(
         "log",
@@ -145,7 +142,7 @@ def parse_cli() -> core.Cli:
         help="filter log files",
     )
     replay_parser.add_argument(
-        "-l", "--list", action="store_true", help="list available logs."
+        "-l", "--list", action="store_true", help="list available logs"
     )
 
     # actaually parse it! -----------------------------------------

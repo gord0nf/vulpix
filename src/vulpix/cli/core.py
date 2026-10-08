@@ -79,7 +79,7 @@ def print_section_summary(tasks: dict[ManagerTask, bool], logger: logging.Logger
 
 
 class Cli(argparse.Namespace):
-    type Command = Literal["sync", "dotfiles", "blueprint", "replay", "dotenv"]
+    type Command = Literal["sync", "dotfiles", "blueprint", "dotenv", "replay"]
 
     logger: logging.Logger
 
@@ -88,6 +88,7 @@ class Cli(argparse.Namespace):
     version: bool = False
     verbose: bool = False
     blueprint: str | None = None
+    edit_blueprint: bool = False
     whatif: bool = False
     command: Command | None = None
 
@@ -99,9 +100,6 @@ class Cli(argparse.Namespace):
 
     # dotfiles command
     path: str | None = None
-
-    # blueprint command
-    edit: bool = False
 
     # replay command
     log: re.Pattern[str] | None = None
@@ -338,12 +336,7 @@ class Cli(argparse.Namespace):
 
     def blueprint_command(self):
         self.init_file_logging()
-
-        if self.edit:
-            utils.open_in_editor(self.get_blueprint_path(), self.logger)
-            return
-
-        self.logger.warning("nothing to do")
+        utils.open_in_editor(self.get_blueprint_path(), self.logger)
 
     def dotenv_command(self):
         self.init_file_logging()
